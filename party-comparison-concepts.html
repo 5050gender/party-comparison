@@ -81,14 +81,14 @@
 
   .brand-band { background: var(--plum); padding: 20px 16px 16px; text-align: center; }
   .brand-logo { display: block; margin: 0 auto 8px; width: 52px; height: 52px; border-radius: 50%; }
-  .app-title { font-size: 16px; font-weight: 700; color: #FFFFFF; text-align: center; margin: 0; letter-spacing: -0.01em; }
+  .app-title { font-size: 21px; font-weight: 700; color: #FFFFFF; text-align: center; margin: 0; letter-spacing: -0.01em; }
 
   .vs-strip { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
   .party-chip { flex: 1; min-width: 0; background: var(--card-sunken); border: 0.5px solid var(--line); border-radius: 10px; padding: 8px 6px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
   .party-chip.a { background: var(--plum-tint); }
   .party-chip.b { background: var(--gold-tint); }
-  .party-chip .nm { font-size: 11px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .vs-mark { font-family: var(--font-display); font-style: italic; font-size: 13px; color: var(--gold); flex: 0 0 auto; }
+  .party-chip .nm { font-size: 14.5px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .vs-mark { font-family: var(--font-display); font-style: italic; font-size: 17px; color: var(--gold); flex: 0 0 auto; }
   .chip-chev { color: var(--ink-soft); }
 
   .logo { width: 32px; height: 32px; border-radius: 50%; flex: none; background: var(--neutral-badge); border: 1.5px solid var(--line-strong); overflow: hidden; }
@@ -97,19 +97,19 @@
   .logo.b { border-color: var(--gold); }
   .logo-lg { width: 64px; height: 64px; border-width: 2px; }
 
-  .picker-hint { text-align: center; font-size: 9.5px; color: var(--ink-soft); margin: 0 0 14px; }
+  .picker-hint { text-align: center; font-size: 12.5px; color: var(--ink-soft); margin: 0 0 14px; }
 
   .compare-zone { position: relative; }
   .compare-zone::before { content: ''; position: absolute; top: 0; bottom: 0; right: 50%; width: 1px; background: var(--line-strong); z-index: 0; }
   .compare-zone > * { position: relative; z-index: 1; }
 
   .score-row { padding: 8px 0; border-bottom: 0.5px solid var(--line); }
-  .score-label { font-size: 9.5px; color: var(--ink-soft); margin-bottom: 5px; text-align: center; }
+  .score-label { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 5px; text-align: center; }
   .score-vals { display: flex; align-items: center; gap: 6px; }
   .score-val { flex: 1; display: flex; align-items: center; gap: 5px; }
   .score-val.left { flex-direction: row-reverse; }
-  .score-num { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
-  .lead-tag { font-size: 8px; background: var(--good-tint); color: var(--good); padding: 1px 5px; border-radius: 20px; font-weight: 500; }
+  .score-num { font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .lead-tag { font-size: 10.5px; background: var(--good-tint); color: var(--good); padding: 1px 5px; border-radius: 20px; font-weight: 500; }
   .bar-track { flex: 1; height: 4px; background: var(--card-sunken); border-radius: 2px; overflow: hidden; display: flex; }
   .bar-fill { height: 100%; }
   .bar-fill.a { background: var(--plum); }
@@ -117,55 +117,60 @@
   .bar-fill.tie { background: var(--line-strong); }
 
   .lead-tag { border: none; }
-  .why-line { display: none; font-size: 9.5px; color: var(--ink-soft); text-align: center; margin: 6px 0 0; line-height: 1.5; }
+  .why-line { display: none; font-size: 12.5px; color: var(--ink-soft); text-align: center; margin: 6px 0 0; line-height: 1.5; }
   .score-row.open .why-line { display: block; }
 
   .commit-row { padding: 8px 0; border-bottom: 0.5px solid var(--line); }
   .commit-row .score-label { text-align: center; }
   .commit-vals { display: flex; align-items: center; gap: 6px; }
   .commit-cell { flex: 1; display: flex; justify-content: center; }
-  .badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 500; padding: 3px 10px; border-radius: 20px; }
+  .badge { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; font-weight: 500; padding: 3px 10px; border-radius: 20px; }
   .badge svg { flex: none; }
   .badge.yes { background: var(--good-tint); color: var(--good); }
   .badge.no { background: var(--danger-tint); color: var(--danger); }
   .badge.partial { background: var(--gold-tint); color: var(--gold-ink); }
 
-  .filter-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 9.5px; font-weight: 500; padding: 6px 12px; border-radius: 20px; background: var(--card-sunken); border: 0.5px solid var(--line); color: var(--ink-soft); margin-bottom: 8px; }
+  .filter-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; padding: 6px 12px; border-radius: 20px; background: var(--card-sunken); border: 0.5px solid var(--line); color: var(--ink-soft); margin-bottom: 8px; }
   .filter-chip.on { background: var(--plum-tint); color: var(--plum-ink); border-color: var(--plum); }
 
-  .section-title { font-size: 10px; font-weight: 500; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em; margin: 16px 0 8px; border-top: 0.5px solid var(--line); padding-top: 12px; }
+  .section-title { font-size: 13px; font-weight: 500; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em; margin: 16px 0 8px; border-top: 0.5px solid var(--line); padding-top: 12px; }
   .quote-block { margin-bottom: 8px; }
-  .quote-who { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 500; color: var(--ink); margin-bottom: 5px; }
-  .quote-who .logo { width: 18px; height: 18px; font-size: 8px; }
-  .cf-quote { font-family: var(--font-display); font-style: italic; font-size: 11.5px; line-height: 1.55; color: var(--ink); background: var(--card-sunken); border-radius: 8px; padding: 8px 10px; }
-  .cf-quote span { display: block; margin-top: 4px; font-family: var(--font-ui); font-style: normal; font-size: 9px; color: var(--ink-soft); }
-  .no-quote { font-size: 12px; color: var(--ink-soft); padding: 2px 0 2px 24px; }
-  .platform-q { font-size: 9px; color: var(--ink-soft); margin-bottom: 2px; }
-  .platform-a { font-size: 10px; color: var(--ink); line-height: 1.5; margin-bottom: 10px; }
+  .quote-who { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--ink); margin-bottom: 5px; }
+  .quote-who .logo { width: 18px; height: 18px; font-size: 10.5px; }
+  .cf-quote { font-family: var(--font-display); font-style: italic; font-size: 15px; line-height: 1.55; color: var(--ink); background: var(--card-sunken); border-radius: 8px; padding: 8px 10px; }
+  .cf-quote span { display: block; margin-top: 4px; font-family: var(--font-ui); font-style: normal; font-size: 11.5px; color: var(--ink-soft); }
+  .no-quote { font-size: 15.5px; color: var(--ink-soft); padding: 2px 0 2px 24px; }
+  .platform-q { font-size: 11.5px; color: var(--ink-soft); margin-bottom: 2px; }
+  .platform-a { font-size: 13px; color: var(--ink); line-height: 1.5; margin-bottom: 10px; }
   .platform-a:last-child { margin-bottom: 0; }
 
   .overlay { position: absolute; inset: 0; background: var(--card); display: none; flex-direction: column; padding: 14px; z-index: 5; }
   .overlay.open { display: flex; }
   .overlay-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-  .overlay-title { font-size: 12.5px; font-weight: 500; }
-  .overlay-close { width: 22px; height: 22px; border-radius: 50%; background: var(--card-sunken); display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 12px; }
+  .overlay-title { font-size: 16.5px; font-weight: 500; }
+  .overlay-close { width: 22px; height: 22px; border-radius: 50%; background: var(--card-sunken); display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 15.5px; }
   .search-box { display: flex; align-items: center; gap: 6px; background: var(--card-sunken); border: 0.5px solid var(--line); border-radius: 10px; padding: 7px 9px; margin-bottom: 8px; }
-  .search-box input { all: unset; flex: 1; font-size: 10.5px; color: var(--ink); min-width: 0; }
+  .search-box input { all: unset; flex: 1; font-size: 13.5px; color: var(--ink); min-width: 0; }
   .search-box input::placeholder { color: var(--ink-soft); }
   .search-box svg { flex: none; color: var(--ink-soft); }
   .plist { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
   .prow { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 6px; border-radius: 8px; text-align: right; }
   .prow .pnames { flex: 1; min-width: 0; }
-  .prow .pnm { font-size: 10.5px; font-weight: 500; color: var(--ink); }
-  .prow .pld { font-size: 9px; color: var(--ink-soft); }
-  .prow .check { flex: none; font-size: 11px; }
+  .prow .pnm { font-size: 13.5px; font-weight: 500; color: var(--ink); }
+  .prow .pld { font-size: 11.5px; color: var(--ink-soft); }
+  .prow .check { flex: none; font-size: 14.5px; }
   .prow.sel.a { background: var(--plum-tint); }
   .prow.sel.a .check { color: var(--plum); }
   .prow.sel.b { background: var(--gold-tint); }
   .prow.sel.b .check { color: var(--gold); }
   .prow.taken { opacity: 0.4; cursor: not-allowed; }
-  .plist-empty { font-size: 10.5px; color: var(--ink-soft); text-align: center; padding: 16px 0; }
+  .plist-empty { font-size: 13.5px; color: var(--ink-soft); text-align: center; padding: 16px 0; }
 
+
+  .metric-link { font-size: 0.85em; color: var(--plum); text-decoration: underline; margin-inline-start: 4px; }
+  .list-link { font-size: 11px; margin: 2px 0 8px; }
+  .list-link a { color: var(--plum); }
+  .list-link.muted { color: var(--ink-soft); }
 </style>
 
 <div class="wrap">
@@ -220,22 +225,22 @@
 <script>
 (function () {
   var PARTIES = [
-    { id: 'bennett',   party: 'ביחד',           leader: 'נפתלי בנט',      seats: 0,  women: 0, pct: 0, expSeats: 14, expWomen: 5, expPct: 36,  c5050: 'partial', cReach: 'no',
+    { id: 'bennett',   party: 'ביחד',           leader: 'נפתלי בנט',      seats: 0,  women: 0, pct: 0, expSeats: 14, expWomen: 5, expPct: 36, listUrl: null,  c5050: 'partial', cReach: 'no',
       quote: 'אני לא בוחר אנשים לפי המגדר שלהם, אני בוחר את הכי טובים ובינתיים יצא שיש רוב נשי', quoteDate: 'אפריל 2026',
       platform: 'אין הבטחה ל-50:50. יש הצהרה נפרדת על 50% מהמשרות הבכירות בשירות הציבורי בתוך חמש שנים' },
-    { id: 'golan',     party: 'הדמוקרטים',       leader: 'יאיר גולן',       seats: 4,  women: 3, pct: 75, expSeats: 10, expWomen: 5, expPct: 50,  c5050: 'yes', cReach: 'yes',
+    { id: 'golan',     party: 'הדמוקרטים',       leader: 'יאיר גולן',       seats: 4,  women: 3, pct: 75, expSeats: 10, expWomen: 5, expPct: 50, listUrl: 'https://democrats.org.il/team/',  c5050: 'yes', cReach: 'yes',
       quote: 'אנחנו נרוץ גם בבחירות הבאות עם רשימה של 5050', quoteDate: 'דצמבר 2025',
       platform: 'אין מצע נפרד, אך ישנה חוקת מפלגת העבודה שעודכנה ביולי 2025 ובה יש התייחסות ישירה (עמ\' 39) לייצוג זהה לנשים ולגברים' },
-    { id: 'netanyahu', party: 'הליכוד',          leader: 'בנימין נתניהו',   seats: 32, women: 7, pct: 22, expSeats: 24, expWomen: 3, expPct: 13,  c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null },
-    { id: 'smotrich',  party: 'הציונות הדתית',    leader: "בצלאל סמוטריץ'",  seats: 7,  women: 2, pct: 28, expSeats: 5, expWomen: 3, expPct: 60,  c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null },
-    { id: 'odeh',      party: 'חד"ש-תע"ל',        leader: 'איימן עודה',      seats: 5,  women: 1, pct: 20, expSeats: 6, expWomen: 1, expPct: 17,  c5050: 'partial', cReach: 'no', quote: null, quoteDate: null, platform: null },
-    { id: 'goldknopf', party: 'יהדות התורה',      leader: 'יצחק גולדקנופף',  seats: 7,  women: 0, pct: 0, expSeats: 8, expWomen: 0, expPct: 0,   c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null },
-    { id: 'eisenkot',  party: 'ישר!',             leader: 'גדי אייזנקוט',    seats: 0,  women: 0, pct: 0, expSeats: 22, expWomen: 6, expPct: 27,   c5050: 'yes',     cReach: 'no', quote: null, quoteDate: null, platform: null },
-    { id: 'liberman',  party: 'ישראל ביתנו',      leader: 'אביגדור ליברמן',  seats: 6,  women: 2, pct: 33, expSeats: 9, expWomen: 1, expPct: 11,  c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null },
-    { id: 'gantz',     party: 'כחול לבן',         leader: 'בני גנץ',        seats: 8,  women: 2, pct: 25, expSeats: 0, expWomen: 0, expPct: 0,  c5050: 'yes',     cReach: 'no', quote: null, quoteDate: null, platform: null },
-    { id: 'bengvir',   party: 'עוצמה יהודית',     leader: 'איתמר בן-גביר',   seats: 6,  women: 1, pct: 17, expSeats: 8, expWomen: 1, expPct: 13,  c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null },
-    { id: 'abbas',     party: 'רע"ם',             leader: 'מנסור עבאס',      seats: 5,  women: 1, pct: 20, expSeats: 5, expWomen: 1, expPct: 20,  c5050: 'partial', cReach: 'no', quote: null, quoteDate: null, platform: null },
-    { id: 'deri',      party: 'ש"ס',              leader: 'אריה דרעי',       seats: 11, women: 0, pct: 0, expSeats: 8, expWomen: 0, expPct: 0,   c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null }
+    { id: 'netanyahu', party: 'הליכוד',          leader: 'בנימין נתניהו',   seats: 32, women: 7, pct: 22, expSeats: 24, expWomen: 3, expPct: 13, listUrl: null,  c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null },
+    { id: 'smotrich',  party: 'הציונות הדתית',    leader: "בצלאל סמוטריץ'",  seats: 7,  women: 2, pct: 28, expSeats: 5, expWomen: 3, expPct: 60, listUrl: null,  c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null },
+    { id: 'odeh',      party: 'חד"ש-תע"ל',        leader: 'איימן עודה',      seats: 5,  women: 1, pct: 20, expSeats: 6, expWomen: 1, expPct: 17, listUrl: null,  c5050: 'partial', cReach: 'no', quote: null, quoteDate: null, platform: null },
+    { id: 'goldknopf', party: 'יהדות התורה',      leader: 'יצחק גולדקנופף',  seats: 7,  women: 0, pct: 0, expSeats: 8, expWomen: 0, expPct: 0, listUrl: null,   c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null },
+    { id: 'eisenkot',  party: 'ישר!',             leader: 'גדי אייזנקוט',    seats: 0,  women: 0, pct: 0, expSeats: 22, expWomen: 6, expPct: 27, listUrl: null,   c5050: 'yes',     cReach: 'no', quote: null, quoteDate: null, platform: null },
+    { id: 'liberman',  party: 'ישראל ביתנו',      leader: 'אביגדור ליברמן',  seats: 6,  women: 2, pct: 33, expSeats: 9, expWomen: 1, expPct: 11, listUrl: null,  c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null },
+    { id: 'gantz',     party: 'כחול לבן',         leader: 'בני גנץ',        seats: 8,  women: 2, pct: 25, expSeats: 0, expWomen: 0, expPct: 0, listUrl: null,  c5050: 'yes',     cReach: 'no', quote: null, quoteDate: null, platform: null },
+    { id: 'bengvir',   party: 'עוצמה יהודית',     leader: 'איתמר בן-גביר',   seats: 6,  women: 1, pct: 17, expSeats: 8, expWomen: 1, expPct: 13, listUrl: null,  c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null },
+    { id: 'abbas',     party: 'רע"ם',             leader: 'מנסור עבאס',      seats: 5,  women: 1, pct: 20, expSeats: 5, expWomen: 1, expPct: 20, listUrl: null,  c5050: 'partial', cReach: 'no', quote: null, quoteDate: null, platform: null },
+    { id: 'deri',      party: 'ש"ס',              leader: 'אריה דרעי',       seats: 11, women: 0, pct: 0, expSeats: 8, expWomen: 0, expPct: 0, listUrl: null,   c5050: 'no',      cReach: 'no', quote: null, quoteDate: null, platform: null }
   ];
 
   var LOGOS = {
@@ -257,7 +262,7 @@
     { key: 'women', label: 'מספר ח"כיות', unit: 'ח"כיות',          fmt: function (v) { return v; } },
     { key: 'pct',   label: 'אחוז ח"כיות',   unit: 'נקודות אחוז',     fmt: function (v) { return v + '%'; } },
     { key: 'seats', label: 'מושבים בכנסת הנוכחית', unit: 'מושבים',  fmt: function (v) { return v; } },
-  { key: 'expSeats', label: 'מנדטים צפויים (בחירות 2026)', unit: 'מנדטים', fmt: function (v) { return v; } },
+  { key: 'expSeats', label: 'מנדטים צפויים (בחירות 2026)', unit: 'מנדטים', fmt: function (v) { return v; }, url: 'https://themadad.com/polls26/' },
     { key: 'expWomen', label: 'כמות נשים צפויה', unit: 'ח"כיות', fmt: function (v) { return v; } },
     { key: 'expPct', label: 'אחוז נשים צפוי', unit: 'נקודות אחוז', fmt: function (v) { return v + '%'; } }
   ];
@@ -318,7 +323,7 @@
       var fillB = fillClass ? 'bar-fill tie' : 'bar-fill b';
       html += '' +
         '<div class="score-row">' +
-          '<div class="score-label">' + esc(m.label) + '</div>' +
+          '<div class="score-label">' + esc(m.label) + (m.url ? ' <a class="metric-link" href="' + m.url + '" target="_blank" rel="noopener">מקור</a>' : '') + '</div>' +
           '<div class="score-vals">' +
             '<div class="score-val"><span class="score-num" style="color:var(--plum-ink)">' + esc(m.fmt(va)) + '</span>' + tagA + '</div>' +
             '<div class="bar-track"><div class="' + fillA + '" style="width:' + widthA + '%"></div><div class="' + fillB + '" style="width:' + widthB + '%"></div></div>' +
@@ -342,10 +347,11 @@
 
   function quoteBlock(p, side) {
     var who = '<div class="quote-who"><span class="logo ' + side + '"><img src="' + LOGOS[p.id] + '" alt="" /></span>' + esc(p.party) + ' &middot; ' + esc(p.leader) + '</div>';
+    var listLine = p.listUrl ? '<p class="list-link"><a href="' + p.listUrl + '" target="_blank" rel="noopener">רשימת המועמדים הרשמית</a></p>' : '<p class="list-link muted">טרם פורסמה רשימה סופית</p>';
     var body = p.quote
       ? '<div class="cf-quote">"' + esc(p.quote) + '"<span>' + esc(p.quoteDate) + '</span></div>'
       : '<div class="no-quote">אין התייחסות</div>';
-    return '<div class="quote-block">' + who + body + '</div>';
+    return '<div class="quote-block">' + who + listLine + body + '</div>';
   }
 
   function renderQuoteSection() {
