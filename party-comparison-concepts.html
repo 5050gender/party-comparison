@@ -100,10 +100,11 @@
   .picker-hint { text-align: center; font-size: 12.5px; color: var(--ink-soft); margin: 0 0 14px; }
 
   .compare-zone { position: relative; }
-  .compare-zone::before { content: ''; position: absolute; top: 0; bottom: 0; right: 50%; width: 1px; background: var(--line-strong); z-index: 0; }
-  .compare-zone > * { position: relative; z-index: 1; }
+  .vs-strip { position: relative; }
+  .vs-strip::after { content: ''; position: absolute; right: 50%; bottom: -8px; width: 1px; height: 8px; background: var(--line-strong); }
 
-  .score-row { padding: 8px 0; border-bottom: 0.5px solid var(--line); }
+  .score-row { position: relative; padding: 8px 0; border-bottom: 0.5px solid var(--line); }
+  .score-row::after, .commit-row::after { content: ''; position: absolute; right: 50%; bottom: -4.5px; width: 1px; height: 9px; background: var(--line-strong); }
   .score-label { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 5px; text-align: center; }
   .score-vals { display: flex; align-items: center; gap: 6px; }
   .score-val { flex: 1; display: flex; align-items: center; gap: 5px; }
@@ -120,7 +121,7 @@
   .why-line { display: none; font-size: 12.5px; color: var(--ink-soft); text-align: center; margin: 6px 0 0; line-height: 1.5; }
   .score-row.open .why-line { display: block; }
 
-  .commit-row { padding: 8px 0; border-bottom: 0.5px solid var(--line); }
+  .commit-row { position: relative; padding: 8px 0; border-bottom: 0.5px solid var(--line); }
   .commit-row .score-label { text-align: center; }
   .commit-vals { display: flex; align-items: center; gap: 6px; }
   .commit-cell { flex: 1; display: flex; justify-content: center; }
