@@ -354,7 +354,7 @@
     var body = p.quote
       ? '<div class="cf-quote">"' + esc(p.quote) + '"<span>' + esc(p.quoteDate) + '</span></div>'
       : '<div class="no-quote">אין התייחסות</div>';
-    return '<div class="quote-block">' + who + listLine + sourceLine + body + '</div>';
+    return '<div class="quote-block">' + who + listLine + body + sourceLine + '</div>';
   }
 
   function renderQuoteSection() {
