@@ -109,20 +109,13 @@
   .score-row { position: relative; padding: 8px 0; border-bottom: 0.5px solid var(--line); }
   .score-row::after, .commit-row::after { content: ''; position: absolute; right: 50%; bottom: -4.5px; width: 1px; height: 9px; background: var(--line-strong); }
   .score-label { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 5px; text-align: center; }
-  .score-vals { display: flex; align-items: center; gap: 6px; }
-  .score-val { flex: 1; display: flex; align-items: center; gap: 5px; }
-  .score-val.left { flex-direction: row-reverse; }
-  .score-num { font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; }
-  .lead-tag { font-size: 10.5px; background: var(--good-tint); color: var(--good); padding: 1px 5px; border-radius: 20px; font-weight: 500; }
-  .bar-track { flex: 1; height: 4px; background: var(--card-sunken); border-radius: 2px; overflow: hidden; display: flex; }
+  .score-num { font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; min-width: 34px; display: inline-block; }
+  .score-bar-line { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .score-bar-line:last-child { margin-bottom: 0; }
+  .bar-track { flex: 1; height: 8px; background: var(--card-sunken); border-radius: 4px; overflow: hidden; display: flex; }
   .bar-fill { height: 100%; }
   .bar-fill.a { background: var(--plum); }
   .bar-fill.b { background: var(--gold); }
-  .bar-fill.tie { background: var(--line-strong); }
-
-  .lead-tag { border: none; }
-  .why-line { display: none; font-size: 12.5px; color: var(--ink-soft); text-align: center; margin: 6px 0 0; line-height: 1.5; }
-  .score-row.open .why-line { display: block; }
 
   .commit-row { position: relative; padding: 8px 0; border-bottom: 0.5px solid var(--line); }
   .commit-row .score-label { text-align: center; }
@@ -326,39 +319,21 @@
     var a = byId(state.slotA), b = byId(state.slotB);
     var html = '';
     METRICS.forEach(function (m) {
-      var va = a[m.key], vb = b[m.key];
-      var widthA = 50, widthB = 50, tagA = '', tagB = '', fillClass = 'tie', whyLine = '';
-      if (va > vb) {
-        widthA = 100; widthB = 0; fillClass = null;
-        tagA = '<button type="button" class="lead-tag btn-reset">מוביל</button>';
-        whyLine = '<p class="why-line">פער של ' + (va - vb) + ' ' + m.unit + ' לטובת ' + esc(a.party) + '</p>';
-      } else if (vb > va) {
-        widthB = 100; widthA = 0; fillClass = null;
-        tagB = '<button type="button" class="lead-tag btn-reset">מוביל</button>';
-        whyLine = '<p class="why-line">פער של ' + (vb - va) + ' ' + m.unit + ' לטובת ' + esc(b.party) + '</p>';
-      }
-      var fillA = fillClass ? 'bar-fill tie' : 'bar-fill a';
-      var fillB = fillClass ? 'bar-fill tie' : 'bar-fill b';
-      html += '' +
-        '<div class="score-row">' +
-          '<div class="score-label">' + esc(m.label) + (m.url ? ' <a class="metric-link" href="' + m.url + '" target="_blank" rel="noopener">מקור</a>' : '') + '</div>' +
-          '<div class="score-vals">' +
-            '<div class="score-val"><span class="score-num" style="color:var(--plum-ink)">' + esc(m.fmt(va)) + '</span>' + tagA + '</div>' +
-            '<div class="bar-track"><div class="' + fillA + '" style="width:' + widthA + '%"></div><div class="' + fillB + '" style="width:' + widthB + '%"></div></div>' +
-            '<div class="score-val left"><span class="score-num" style="color:var(--gold-ink)">' + esc(m.fmt(vb)) + '</span>' + tagB + '</div>' +
-          '</div>' +
-          whyLine +
-        '</div>';
-    });
-    COMMIT_FIELDS.forEach(function (f) {
-      html += '' +
-        '<div class="commit-row">' +
-          '<div class="score-label">' + esc(f.label) + '</div>' +
-          '<div class="commit-vals">' +
-            '<div class="commit-cell">' + badgeHtml(a[f.key]) + '</div>' +
-            '<div class="commit-cell">' + badgeHtml(b[f.key]) + '</div>' +
-          '</div>' +
-        '</div>';
+      var rawA = Number(a[m.key]) || 0, rawB = Number(b[m.key]) || 0;
+      var maxv = Math.max(rawA, rawB, 1) * 1.15;
+      var wa = Math.max(3, Math.round((rawA / maxv) * 100));
+      var wb = Math.max(3, Math.round((rawB / maxv) * 100));
+      html += '<div class="score-row">' +
+        '<div class="score-label">' + esc(m.label) + (m.url ? ' <a href="' + m.url + '" target="_blank" rel="noopener">מקור</a>' : '') + '</div>' +
+        '<div class="score-bar-line">' +
+          '<span class="score-num" style="color:var(--plum-ink)">' + esc(m.fmt(rawA)) + '</span>' +
+          '<div class="bar-track"><div class="bar-fill a" style="width:' + wa + '%"></div></div>' +
+        '</div>' +
+        '<div class="score-bar-line">' +
+          '<span class="score-num" style="color:var(--gold-ink)">' + esc(m.fmt(rawB)) + '</span>' +
+          '<div class="bar-track"><div class="bar-fill b" style="width:' + wb + '%"></div></div>' +
+        '</div>' +
+      '</div>';
     });
     document.getElementById('scoreRows').innerHTML = html;
   }
@@ -477,11 +452,6 @@
   document.getElementById('slotABtn').addEventListener('click', function () { openPicker('A'); });
   document.getElementById('slotBBtn').addEventListener('click', function () { openPicker('B'); });
   document.getElementById('overlayClose').addEventListener('click', closePicker);
-  document.getElementById('scoreRows').addEventListener('click', function (e) {
-    var btn = e.target.closest('.lead-tag');
-    if (!btn) return;
-    btn.closest('.score-row').classList.toggle('open');
-  });
   document.getElementById('filterChip').addEventListener('click', function () {
     state.filterCommit = !state.filterCommit;
     this.classList.toggle('on', state.filterCommit);
