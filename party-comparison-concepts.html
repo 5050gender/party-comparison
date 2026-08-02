@@ -144,6 +144,17 @@
   .platform-q { font-size: 11.5px; color: var(--ink-soft); margin-bottom: 2px; }
   .platform-a { font-size: 13px; color: var(--ink); line-height: 1.5; margin-bottom: 10px; }
   .platform-a:last-child { margin-bottom: 0; }
+  .cf-legend { display: flex; gap: 10px; font-size: 11px; color: var(--ink-soft); margin-bottom: 8px; flex-wrap: wrap; }
+  .cf-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; align-items: stretch; }
+  .cf-platform-cell { display: flex; flex-direction: column; }
+  .cf-stance-badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 6px; margin-bottom: 6px; }
+  .cf-stance-strong { background: var(--good-tint); color: var(--good); }
+  .cf-stance-partial { background: var(--gold-tint); color: var(--gold-ink); }
+  .cf-stance-none { background: var(--danger-tint); color: var(--danger); }
+  .cf-kw-num, .cf-kw-formal, .cf-kw-verbal { border-radius: 3px; padding: 0 2px; }
+  .cf-kw-num { background: var(--plum-tint); color: var(--plum-ink); }
+  .cf-kw-formal { background: var(--good-tint); color: var(--good); }
+  .cf-kw-verbal { background: var(--danger-tint); color: var(--danger); }
 
   .overlay { position: absolute; inset: 0; background: var(--card); display: none; flex-direction: column; padding: 14px; z-index: 5; }
   .overlay.open { display: flex; }
@@ -347,23 +358,65 @@
     document.getElementById('scoreRows').innerHTML = html;
   }
 
+  function classifyStance(text) {
+    if (!text || /^\s*אין\s*$/.test(text)) return { label: 'אין התייחסות', cls: 'cf-stance-none' };
+    if (/תקנון|בחקיקה|שריון|רוכסן/.test(text)) return { label: 'מעוגן רשמית', cls: 'cf-stance-strong' };
+    if (/בעל פה|בע"פ|לא כתוב|לא באתר/.test(text)) return { label: 'בעל פה בלבד', cls: 'cf-stance-partial' };
+    return { label: 'התייחסות חלקית', cls: 'cf-stance-partial' };
+  }
+
+  function highlightKeywords(text) {
+    if (!text) return '';
+    var rules = [
+      { re: /50\s*\/?\s*50|50%|40%/g, cls: 'cf-kw-num' },
+      { re: /תקנון|בחקיקה|שריון|רוכסן/g, cls: 'cf-kw-formal' },
+      { re: /בעל פה|בע"פ|לא כתוב|לא באתר/g, cls: 'cf-kw-verbal' }
+    ];
+    var segments = [{ text: text, tag: null }];
+    rules.forEach(function (rule) {
+      var next = [];
+      segments.forEach(function (seg) {
+        if (seg.tag) { next.push(seg); return; }
+        var lastIndex = 0, m;
+        rule.re.lastIndex = 0;
+        while ((m = rule.re.exec(seg.text))) {
+          if (m.index > lastIndex) next.push({ text: seg.text.slice(lastIndex, m.index), tag: null });
+          next.push({ text: m[0], tag: rule.cls });
+          lastIndex = m.index + m[0].length;
+        }
+        if (lastIndex < seg.text.length) next.push({ text: seg.text.slice(lastIndex), tag: null });
+      });
+      segments = next;
+    });
+    return segments.map(function (seg) {
+      var e = esc(seg.text);
+      return seg.tag ? '<mark class="' + seg.tag + '">' + e + '</mark>' : e;
+    }).join('');
+  }
+
   function quoteBlock(p, side) {
     var who = '<div class="quote-who"><span class="logo ' + side + '"><img src="' + LOGOS[p.id] + '" alt="" /></span>' + esc(p.party) + ' &middot; ' + esc(p.leader) + '</div>';
     var listLine = p.listUrl ? '<p class="list-link"><a href="' + p.listUrl + '" target="_blank" rel="noopener">רשימת המועמדים הרשמית</a></p>' : '<p class="list-link muted">טרם פורסמה רשימה סופית</p>';
     var sourceLine = p.listSource ? '<p class="list-source">מקור נתוני הרשימה: ' + esc(p.listSource) + '</p>' : '';
+    var stance = classifyStance(p.quote);
+    var badge = '<span class="cf-stance-badge ' + stance.cls + '">' + stance.label + '</span>';
     var body = p.quote
-      ? '<div class="cf-quote">"' + esc(p.quote) + '"<span>' + esc(p.quoteDate) + '</span></div>'
+      ? badge + '<div class="cf-quote">"' + highlightKeywords(p.quote) + '"<span>' + esc(p.quoteDate) + '</span></div>'
       : '<div class="no-quote">אין התייחסות</div>';
     return '<div class="quote-block">' + who + listLine + body + sourceLine + '</div>';
   }
 
+  function platformBlock(p) {
+    var stance = classifyStance(p.platform);
+    var badge = '<span class="cf-stance-badge ' + stance.cls + '">' + stance.label + '</span>';
+    var body = p.platform ? highlightKeywords(p.platform) : 'אין התייחסות';
+    return '<div class="cf-platform-cell">' + badge + '<p class="platform-q">האם יש התייחסות לשוויון מגדרי במצע? &middot; ' + esc(p.party) + '</p><p class="platform-a">' + body + '</p></div>';
+  }
+
   function renderQuoteSection() {
     var a = byId(state.slotA), b = byId(state.slotB);
-    var html = quoteBlock(a, 'a') + quoteBlock(b, 'b');
-    html += '<p class="platform-q">האם יש התייחסות לשוויון מגדרי במצע? &middot; ' + esc(a.party) + '</p>';
-    html += '<p class="platform-a">' + (a.platform ? esc(a.platform) : 'אין התייחסות') + '</p>';
-    html += '<p class="platform-q">האם יש התייחסות לשוויון מגדרי במצע? &middot; ' + esc(b.party) + '</p>';
-    html += '<p class="platform-a">' + (b.platform ? esc(b.platform) : 'אין התייחסות') + '</p>';
+    var legend = '<div class="cf-legend"><span class="cf-kw-num">יעד מספרי</span><span class="cf-kw-formal">מעוגן רשמית</span><span class="cf-kw-verbal">בעל פה / לא כתוב</span></div>';
+    var html = legend + '<div class="cf-compare-grid">' + quoteBlock(a, 'a') + quoteBlock(b, 'b') + platformBlock(a) + platformBlock(b) + '</div>';
     document.getElementById('quoteSection').innerHTML = html;
   }
 
