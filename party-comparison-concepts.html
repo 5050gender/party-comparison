@@ -116,6 +116,12 @@
   .bar-fill { height: 100%; }
   .bar-fill.a { background: var(--plum); }
   .bar-fill.b { background: var(--gold); }
+    .channel-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
+    .channel-tab { font-family: var(--font-ui); font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); cursor: pointer; }
+    .channel-tab:hover { border-color: var(--line-strong); }
+    .channel-tab.active { background: var(--plum); border-color: var(--plum); color: #fff; }
+    .channel-tabs-caption { font-size: 12px; color: var(--ink-soft); margin: 0 0 10px; }
+
 
   .commit-row { position: relative; padding: 8px 0; border-bottom: 0.5px solid var(--line); }
   .commit-row .score-label { text-align: center; }
@@ -210,6 +216,8 @@
           </div>
           <p class="picker-hint">הקישו על מפלגה כדי להחליף</p>
 
+          <div class="channel-tabs" id="channelTabs" role="tablist"></div>
+          <p class="channel-tabs-caption" id="channelCaption"></p>
           <div id="scoreRows"></div>
         </div>
 
@@ -282,6 +290,9 @@
     { key: 'c5050',  label: 'התחייבות ל-5050 בכנסת הבאה' },
     { key: 'cReach', label: "התחייבות לריצ'רצ' בכנסת הבאה" }
   ];
+    var CHANNELS = [{"key":"מעריב","label":"מעריב"},{"key":"זמן ישראל","label":"זמן ישראל"},{"key":"חדשות 13","label":"חדשות 13"},{"key":"ערוץ 14","label":"ערוץ 14"},{"key":"i24 news","label":"i24 news"},{"key":"חדשות 12","label":"חדשות 12"},{"key":"כאן חדשות","label":"כאן חדשות"},{"key":"ישראל היום","label":"ישראל היום"},{"key":"וואלה","label":"וואלה"}];
+    var CHANNEL_DATA = {"מעריב":{"date":"2026-07-31","pollster":"מנחם לזר","parties":{"netanyahu":{"seats":22,"women":3,"pct":14},"goldknopf":{"seats":8,"women":0,"pct":0},"deri":{"seats":7,"women":0,"pct":0},"gantz":{"seats":0,"women":0,"pct":0},"odeh":{"seats":5,"women":0,"pct":0},"liberman":{"seats":10,"women":1,"pct":10},"golan":{"seats":9,"women":4,"pct":44},"smotrich":{"seats":5,"women":2,"pct":40},"abbas":{"seats":5,"women":1,"pct":20},"bengvir":{"seats":7,"women":1,"pct":14},"bennett":{"seats":15,"women":8,"pct":53},"eisenkot":{"seats":23,"women":6,"pct":26}}},"זמן ישראל":{"date":"2026-07-30","pollster":"יוסי טאטיקה","parties":{"netanyahu":{"seats":20,"women":3,"pct":15},"goldknopf":{"seats":8,"women":0,"pct":0},"deri":{"seats":8,"women":0,"pct":0},"gantz":{"seats":4,"women":0,"pct":0,"noData":true},"odeh":{"seats":6,"women":1,"pct":17},"liberman":{"seats":10,"women":1,"pct":10},"golan":{"seats":8,"women":4,"pct":50},"smotrich":{"seats":6,"women":2,"pct":33},"abbas":{"seats":5,"women":1,"pct":20},"bengvir":{"seats":7,"women":1,"pct":14},"bennett":{"seats":13,"women":6,"pct":46},"eisenkot":{"seats":21,"women":6,"pct":29}}},"חדשות 13":{"date":"2026-07-29","pollster":"המדד","parties":{"netanyahu":{"seats":23,"women":3,"pct":13},"goldknopf":{"seats":9,"women":0,"pct":0},"deri":{"seats":7,"women":0,"pct":0},"gantz":{"seats":0,"women":0,"pct":0},"odeh":{"seats":4,"women":0,"pct":0},"liberman":{"seats":10,"women":1,"pct":10},"golan":{"seats":9,"women":4,"pct":44},"smotrich":{"seats":4,"women":2,"pct":50},"abbas":{"seats":5,"women":1,"pct":20},"bengvir":{"seats":8,"women":1,"pct":12},"bennett":{"seats":13,"women":6,"pct":46},"eisenkot":{"seats":23,"women":6,"pct":26}}},"ערוץ 14":{"date":"2026-07-29","pollster":"שלמה פילבר","parties":{"netanyahu":{"seats":32,"women":3,"pct":9},"goldknopf":{"seats":8,"women":0,"pct":0},"deri":{"seats":10,"women":0,"pct":0},"gantz":{"seats":0,"women":0,"pct":0},"odeh":{"seats":6,"women":1,"pct":17},"liberman":{"seats":8,"women":1,"pct":12},"golan":{"seats":10,"women":5,"pct":50},"smotrich":{"seats":5,"women":2,"pct":40},"abbas":{"seats":5,"women":1,"pct":20},"bengvir":{"seats":7,"women":1,"pct":14},"bennett":{"seats":7,"women":3,"pct":43},"eisenkot":{"seats":22,"women":6,"pct":27}}},"i24 news":{"date":"2026-07-27","pollster":"צוריאל שרון","parties":{"netanyahu":{"seats":29,"women":3,"pct":10},"goldknopf":{"seats":8,"women":0,"pct":0},"deri":{"seats":9,"women":0,"pct":0},"gantz":{"seats":0,"women":0,"pct":0},"odeh":{"seats":7,"women":1,"pct":14},"liberman":{"seats":9,"women":1,"pct":11},"golan":{"seats":10,"women":5,"pct":50},"smotrich":{"seats":5,"women":2,"pct":40},"abbas":{"seats":5,"women":1,"pct":20},"bengvir":{"seats":8,"women":1,"pct":12},"bennett":{"seats":9,"women":4,"pct":44},"eisenkot":{"seats":21,"women":6,"pct":29}}},"חדשות 12":{"date":"2026-07-27","pollster":"מנו גבע","parties":{"netanyahu":{"seats":22,"women":3,"pct":14},"goldknopf":{"seats":8,"women":0,"pct":0},"deri":{"seats":8,"women":0,"pct":0},"gantz":{"seats":0,"women":0,"pct":0},"odeh":{"seats":5,"women":0,"pct":0},"liberman":{"seats":9,"women":1,"pct":11},"golan":{"seats":10,"women":5,"pct":50},"smotrich":{"seats":4,"women":2,"pct":50},"abbas":{"seats":5,"women":1,"pct":20},"bengvir":{"seats":8,"women":1,"pct":12},"bennett":{"seats":14,"women":7,"pct":50},"eisenkot":{"seats":23,"women":6,"pct":26}}},"כאן חדשות":{"date":"2026-07-26","pollster":"דודי חסיד","parties":{"netanyahu":{"seats":22,"women":3,"pct":14},"goldknopf":{"seats":8,"women":0,"pct":0},"deri":{"seats":8,"women":0,"pct":0},"gantz":{"seats":0,"women":0,"pct":0},"odeh":{"seats":5,"women":0,"pct":0},"liberman":{"seats":9,"women":1,"pct":11},"golan":{"seats":10,"women":5,"pct":50},"smotrich":{"seats":5,"women":2,"pct":40},"abbas":{"seats":5,"women":1,"pct":20},"bengvir":{"seats":9,"women":1,"pct":11},"bennett":{"seats":14,"women":7,"pct":50},"eisenkot":{"seats":21,"women":6,"pct":29}}},"ישראל היום":{"date":"2026-07-23","pollster":"דודי חסיד","parties":{"netanyahu":{"seats":23,"women":3,"pct":13},"goldknopf":{"seats":8,"women":0,"pct":0},"deri":{"seats":8,"women":0,"pct":0},"gantz":{"seats":0,"women":0,"pct":0},"odeh":{"seats":5,"women":0,"pct":0},"liberman":{"seats":9,"women":1,"pct":11},"golan":{"seats":10,"women":5,"pct":50},"smotrich":{"seats":5,"women":2,"pct":40},"abbas":{"seats":6,"women":1,"pct":17},"bengvir":{"seats":9,"women":1,"pct":11},"bennett":{"seats":14,"women":7,"pct":50},"eisenkot":{"seats":23,"women":6,"pct":26}}},"וואלה":{"date":"2026-04-27","pollster":"מנחם לזר","parties":{"netanyahu":{"seats":28,"women":3,"pct":11},"goldknopf":{"seats":7,"women":0,"pct":0},"deri":{"seats":8,"women":0,"pct":0},"gantz":{"seats":0,"women":0,"pct":0},"odeh":{"seats":5,"women":0,"pct":0},"liberman":{"seats":8,"women":1,"pct":12},"golan":{"seats":9,"women":4,"pct":44},"smotrich":{"seats":0,"women":0,"pct":0},"abbas":{"seats":5,"women":1,"pct":20},"bengvir":{"seats":8,"women":1,"pct":12},"bennett":{"seats":27,"women":13,"pct":48},"eisenkot":{"seats":15,"women":6,"pct":40}}}};
+
 
   var CHECK_SVG = '<svg width="10" height="10" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   var X_SVG = '<svg width="10" height="10" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
@@ -292,7 +303,7 @@
     return '<span class="badge partial">חלקי</span>';
   }
 
-  var state = { slotA: 'netanyahu', slotB: 'bennett', active: null, query: '', filterCommit: false };
+  var state = { slotA: 'netanyahu', slotB: 'bennett', active: null, query: '', filterCommit: false, channel: 'avg' };
 
   function byId(id) { for (var i = 0; i < PARTIES.length; i++) { if (PARTIES[i].id === id) return PARTIES[i]; } return null; }
   function initials(name) {
@@ -319,23 +330,61 @@
     var a = byId(state.slotA), b = byId(state.slotB);
     var html = '';
     METRICS.forEach(function (m) {
-      var rawA = Number(a[m.key]) || 0, rawB = Number(b[m.key]) || 0;
+      var isExp = (m.key === 'expSeats' || m.key === 'expWomen' || m.key === 'expPct');
+      var subKey = m.key === 'expSeats' ? 'seats' : (m.key === 'expWomen' ? 'women' : (m.key === 'expPct' ? 'pct' : null));
+      var chA = null, chB = null;
+      if (isExp && state.channel !== 'avg' && CHANNEL_DATA[state.channel]) {
+        var cd = CHANNEL_DATA[state.channel].parties;
+        chA = cd[a.id] || null;
+        chB = cd[b.id] || null;
+      }
+      var noDataA = !!(chA && chA.noData);
+      var noDataB = !!(chB && chB.noData);
+      var rawA = (chA && subKey != null) ? Number(chA[subKey]) || 0 : (Number(a[m.key]) || 0);
+      var rawB = (chB && subKey != null) ? Number(chB[subKey]) || 0 : (Number(b[m.key]) || 0);
       var maxv = Math.max(rawA, rawB, 1) * 1.15;
-      var wa = Math.max(3, Math.round((rawA / maxv) * 100));
-      var wb = Math.max(3, Math.round((rawB / maxv) * 100));
+      var wa = noDataA ? 0 : Math.max(3, Math.round((rawA / maxv) * 100));
+      var wb = noDataB ? 0 : Math.max(3, Math.round((rawB / maxv) * 100));
+      var textA = noDataA ? 'אין נתונים' : esc(m.fmt(rawA));
+      var textB = noDataB ? 'אין נתונים' : esc(m.fmt(rawB));
       html += '<div class="score-row">' +
         '<div class="score-label">' + esc(m.label) + (m.url ? ' <a href="' + m.url + '" target="_blank" rel="noopener">מקור</a>' : '') + '</div>' +
         '<div class="score-bar-line">' +
-          '<span class="score-num" style="color:var(--plum-ink)">' + esc(m.fmt(rawA)) + '</span>' +
+          '<span class="score-num" style="color:var(--plum-ink)">' + textA + '</span>' +
           '<div class="bar-track"><div class="bar-fill a" style="width:' + wa + '%"></div></div>' +
         '</div>' +
         '<div class="score-bar-line">' +
-          '<span class="score-num" style="color:var(--gold-ink)">' + esc(m.fmt(rawB)) + '</span>' +
+          '<span class="score-num" style="color:var(--gold-ink)">' + textB + '</span>' +
           '<div class="bar-track"><div class="bar-fill b" style="width:' + wb + '%"></div></div>' +
         '</div>' +
       '</div>';
     });
     document.getElementById('scoreRows').innerHTML = html;
+  }
+
+  function selectChannel(key) {
+    state.channel = key;
+    renderChannelTabs();
+    renderScoreRows();
+  }
+
+  function renderChannelTabs() {
+    var tabsHtml = '<button type="button" class="channel-tab' + (state.channel === 'avg' ? ' active' : '') + '" data-channel="avg">ממוצע (המדד)</button>';
+    CHANNELS.forEach(function (c) {
+      tabsHtml += '<button type="button" class="channel-tab' + (state.channel === c.key ? ' active' : '') + '" data-channel="' + esc(c.key) + '">' + esc(c.label) + '</button>';
+    });
+    var tabsEl = document.getElementById('channelTabs');
+    tabsEl.innerHTML = tabsHtml;
+    Array.prototype.forEach.call(tabsEl.querySelectorAll('.channel-tab'), function (btn) {
+      btn.addEventListener('click', function () { selectChannel(btn.getAttribute('data-channel')); });
+    });
+    var capEl = document.getElementById('channelCaption');
+    if (state.channel === 'avg') {
+      capEl.textContent = 'מבוסס על ממוצע משוקלל של כל הסקרים (themadad.com/polls26)';
+    } else {
+      var cd = CHANNEL_DATA[state.channel];
+      capEl.textContent = cd ? ('לפי הסקר האחרון של ' + state.channel + ' (' + cd.date.split('-').reverse().join('/') + ', סוקר: ' + cd.pollster + ')') : '';
+    }
   }
 
   function classifyStance(text) {
@@ -470,6 +519,7 @@
     render();
   });
 
+  renderChannelTabs();
   render();
 })();
 </script>
