@@ -56,6 +56,7 @@ tracked party's name changes.
 """
 
 import argparse
+import http.cookiejar
 import json
 import sys
 import urllib.request
@@ -91,9 +92,26 @@ SHEET_NAME = 'סקרים לפי ערוץ'
 
 
 def fetch_all_polls():
-    """Download polls26 and extract the embedded `allPolls` JSON array."""
-    req = urllib.request.Request(POLLS_URL, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req) as resp:
+    """Download polls26 and extract the embedded `allPolls` JSON array.
+
+    themadad.com sends a "set a cookie, then redirect back to the same URL"
+    response on the first request (consent/bot-check). urllib.request's
+    default opener doesn't keep cookies across redirects, so it bounces
+    between the same two URLs forever and Python raises
+    "HTTPError: HTTP Error 302: ... infinite loop". Using a cookie-jar-backed
+    opener lets it carry the cookie through the redirect like a real browser
+    would, so it resolves normally.
+    """
+    cookie_jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
+    headers = {
+        'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                        '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+    }
+    req = urllib.request.Request(POLLS_URL, headers=headers)
+    with opener.open(req, timeout=30) as resp:
         html = resp.read().decode('utf-8', errors='replace')
 
     idx = html.find('allPolls')
