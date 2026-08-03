@@ -58,6 +58,7 @@ tracked party's name changes.
 import argparse
 import http.cookiejar
 import json
+import re
 import sys
 import urllib.request
 
@@ -70,7 +71,7 @@ for _stream in (sys.stdout, sys.stderr):
 POLLS_URL = "https://themadad.com/polls26/"
 
 # themadad.com field slug -> party name as used in this workbook's
-# "מועמדים 2026" / "חישוב 2026" tabs. Only fields for parties we track are
+# "מועמידים 2026" / "חישוב 2026" tabs. Only fields for parties we track are
 # listed; other fields in each poll record (avoda/meretz overlap, yamina,
 # economy, tikvahHadash, miluimnikim, unifiedArabList, ballad) are ignored.
 FIELD_TO_PARTY = [
@@ -114,11 +115,17 @@ def fetch_all_polls():
     with opener.open(req, timeout=30) as resp:
         html = resp.read().decode('utf-8', errors='replace')
 
-    idx = html.find('allPolls')
-    if idx == -1:
-        raise RuntimeError("Could not find 'allPolls' in the page - themadad.com "
-                            "may have changed its page structure.")
-    bracket_start = html.find('[', idx)
+    # The page contains several unrelated occurrences of the bare word
+    # "allPolls" (e.g. references/usages elsewhere in its scripts) - only ONE
+    # of them is the actual `const allPolls    = [ ... ]` declaration. Matching
+    # on the bare word and grabbing the next '[' after it is fragile: it can
+    # lock onto an unrelated, tiny array next to a false-positive match and
+    # produce invalid/truncated JSON. Anchor on the assignment itself instead.
+    decl_match = re.search(r'allPolls\s*=\s*\[', html)
+    if decl_match is None:
+        raise RuntimeError("Could not find an 'allPolls = [...]' declaration in the "
+                            "page - themadad.com may have changed its page structure.")
+    bracket_start = decl_match.end() - 1  # position of the '[' itself
     depth = 0
     started = False
     i = bracket_start
