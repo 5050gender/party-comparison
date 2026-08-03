@@ -121,6 +121,9 @@
     .channel-tab:hover { border-color: var(--line-strong); }
     .channel-tab.active { background: var(--plum); border-color: var(--plum); color: #fff; }
     .channel-tabs-caption { font-size: 12px; color: var(--ink-soft); margin: 0 0 10px; }
+    .score-section-label { font-size: 12px; font-weight: 500; color: var(--ink-soft); margin: 0 0 8px; }
+    .score-divider { border-top: 0.5px solid var(--line); margin: 14px 0 12px; }
+
 
 
   .commit-row { position: relative; padding: 8px 0; border-bottom: 0.5px solid var(--line); }
@@ -278,12 +281,12 @@
   };
 
   var METRICS = [
+    { key: 'expSeats', label: 'מנדטים צפויים למפלגה', unit: 'מנדטים', fmt: function (v) { return v; }, url: 'https://themadad.com/polls26/' },
+    { key: 'expWomen', label: 'מספר נשים צפויות למפלגה', unit: 'ח"כיות', fmt: function (v) { return v; } },
+    { key: 'expPct', label: 'אחוז נשים צפוי', unit: 'נקודות אחוז', fmt: function (v) { return v + '%'; } },
     { key: 'seats', label: 'מושבים בכנסת הנוכחית', unit: 'מושבים',  fmt: function (v) { return v; } },
     { key: 'women', label: 'מספר ח"כיות', unit: 'ח"כיות',          fmt: function (v) { return v; } },
-    { key: 'pct',   label: 'אחוז ח"כיות',   unit: 'נקודות אחוז',     fmt: function (v) { return v + '%'; } },
-    { key: 'expSeats', label: 'מנדטים צפויים (בחירות 2026)', unit: 'מנדטים', fmt: function (v) { return v; }, url: 'https://themadad.com/polls26/' },
-    { key: 'expWomen', label: 'כמות נשים צפויה', unit: 'ח"כיות', fmt: function (v) { return v; } },
-    { key: 'expPct', label: 'אחוז נשים צפוי', unit: 'נקודות אחוז', fmt: function (v) { return v + '%'; } }
+    { key: 'pct',   label: 'אחוז ח"כיות',   unit: 'נקודות אחוז',     fmt: function (v) { return v + '%'; } }
   ];
 
   var COMMIT_FIELDS = [
@@ -329,35 +332,51 @@
   function renderScoreRows() {
     var a = byId(state.slotA), b = byId(state.slotB);
     var html = '';
-    METRICS.forEach(function (m) {
-      var isExp = (m.key === 'expSeats' || m.key === 'expWomen' || m.key === 'expPct');
-      var subKey = m.key === 'expSeats' ? 'seats' : (m.key === 'expWomen' ? 'women' : (m.key === 'expPct' ? 'pct' : null));
-      var chA = null, chB = null;
-      if (isExp && state.channel !== 'avg' && CHANNEL_DATA[state.channel]) {
-        var cd = CHANNEL_DATA[state.channel].parties;
-        chA = cd[a.id] || null;
-        chB = cd[b.id] || null;
-      }
-      var noDataA = !!(chA && chA.noData);
-      var noDataB = !!(chB && chB.noData);
-      var rawA = (chA && subKey != null) ? Number(chA[subKey]) || 0 : (Number(a[m.key]) || 0);
-      var rawB = (chB && subKey != null) ? Number(chB[subKey]) || 0 : (Number(b[m.key]) || 0);
-      var maxv = Math.max(rawA, rawB, 1) * 1.15;
-      var wa = noDataA ? 0 : Math.max(3, Math.round((rawA / maxv) * 100));
-      var wb = noDataB ? 0 : Math.max(3, Math.round((rawB / maxv) * 100));
-      var textA = noDataA ? 'אין נתונים' : esc(m.fmt(rawA));
-      var textB = noDataB ? 'אין נתונים' : esc(m.fmt(rawB));
-      html += '<div class="score-row">' +
-        '<div class="score-label">' + esc(m.label) + (m.url ? ' <a href="' + m.url + '" target="_blank" rel="noopener">מקור</a>' : '') + '</div>' +
-        '<div class="score-bar-line">' +
-          '<span class="score-num" style="color:var(--plum-ink)">' + textA + '</span>' +
-          '<div class="bar-track"><div class="bar-fill a" style="width:' + wa + '%"></div></div>' +
-        '</div>' +
-        '<div class="score-bar-line">' +
-          '<span class="score-num" style="color:var(--gold-ink)">' + textB + '</span>' +
-          '<div class="bar-track"><div class="bar-fill b" style="width:' + wb + '%"></div></div>' +
-        '</div>' +
-      '</div>';
+    var groups = [
+      { label: 'צפוי (בחירות 2026)', metrics: [METRICS[0], METRICS[1], METRICS[2]] },
+      { label: 'נוכחי (כנסת 25)', metrics: [METRICS[3], METRICS[4], METRICS[5]] }
+    ];
+    groups.forEach(function (g, gi) {
+      if (gi > 0) html += '<div class="score-divider"></div>';
+      html += '<div class="score-section-label">' + esc(g.label) + '</div>';
+      var sharedMax = null;
+      g.metrics.forEach(function (m, mi) {
+        var isExp = (m.key === 'expSeats' || m.key === 'expWomen' || m.key === 'expPct');
+        var subKey = m.key === 'expSeats' ? 'seats' : (m.key === 'expWomen' ? 'women' : (m.key === 'expPct' ? 'pct' : null));
+        var chA = null, chB = null;
+        if (isExp && state.channel !== 'avg' && CHANNEL_DATA[state.channel]) {
+          var cd = CHANNEL_DATA[state.channel].parties;
+          chA = cd[a.id] || null;
+          chB = cd[b.id] || null;
+        }
+        var noDataA = !!(chA && chA.noData);
+        var noDataB = !!(chB && chB.noData);
+        var rawA = (chA && subKey != null) ? Number(chA[subKey]) || 0 : (Number(a[m.key]) || 0);
+        var rawB = (chB && subKey != null) ? Number(chB[subKey]) || 0 : (Number(b[m.key]) || 0);
+        var wa, wb;
+        if (mi === 2) {
+          wa = noDataA ? 0 : (rawA <= 0 ? 0 : Math.min(100, Math.max(3, Math.round(rawA))));
+          wb = noDataB ? 0 : (rawB <= 0 ? 0 : Math.min(100, Math.max(3, Math.round(rawB))));
+        } else {
+          if (mi === 0) sharedMax = Math.max(rawA, rawB, 1) * 1.15;
+          var maxv = sharedMax;
+          wa = noDataA ? 0 : Math.max(3, Math.round((rawA / maxv) * 100));
+          wb = noDataB ? 0 : Math.max(3, Math.round((rawB / maxv) * 100));
+        }
+        var textA = noDataA ? 'אין נתונים' : esc(m.fmt(rawA));
+        var textB = noDataB ? 'אין נתונים' : esc(m.fmt(rawB));
+        html += '<div class="score-row">' +
+          '<div class="score-label">' + esc(m.label) + (m.url ? ' <a href="' + m.url + '" target="_blank" rel="noopener">מקור</a>' : '') + '</div>' +
+          '<div class="score-bar-line">' +
+            '<span class="score-num" style="color:var(--plum-ink)">' + textA + '</span>' +
+            '<div class="bar-track"><div class="bar-fill a" style="width:' + wa + '%"></div></div>' +
+          '</div>' +
+          '<div class="score-bar-line">' +
+            '<span class="score-num" style="color:var(--gold-ink)">' + textB + '</span>' +
+            '<div class="bar-track"><div class="bar-fill b" style="width:' + wb + '%"></div></div>' +
+          '</div>' +
+        '</div>';
+      });
     });
     document.getElementById('scoreRows').innerHTML = html;
   }
