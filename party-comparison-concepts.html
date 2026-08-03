@@ -111,6 +111,15 @@
   .score-label { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 5px; text-align: center; }
   .score-num { font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; min-width: 34px; display: inline-block; }
   .score-bar-line { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .score-bar-logo {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      flex: none;
+      border: 1.5px solid var(--line-strong);
+      background: var(--neutral-badge);
+      object-fit: cover;
+    }
   .score-bar-line:last-child { margin-bottom: 0; }
   .bar-track { flex: 1; height: 8px; background: var(--card-sunken); border-radius: 4px; overflow: hidden; display: flex; }
   .bar-fill { height: 100%; }
@@ -139,7 +148,14 @@
   .filter-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; padding: 6px 12px; border-radius: 20px; background: var(--card-sunken); border: 0.5px solid var(--line); color: var(--ink-soft); margin-bottom: 8px; }
   .filter-chip.on { background: var(--plum-tint); color: var(--plum-ink); border-color: var(--plum); }
 
-  .section-title { font-size: 13px; font-weight: 500; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em; margin: 16px 0 8px; border-top: 0.5px solid var(--line); padding-top: 12px; }
+  .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink-soft);
+      margin: 16px 0 8px;
+      border-top: 0.5px solid var(--line);
+      padding-top: 12px;
+    }
   .quote-block { margin-bottom: 8px; }
   .quote-who { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--ink); margin-bottom: 5px; }
   .quote-who .logo { width: 18px; height: 18px; font-size: 10.5px; }
@@ -368,10 +384,12 @@
         html += '<div class="score-row">' +
           '<div class="score-label">' + esc(m.label) + (m.url ? ' <a href="' + m.url + '" target="_blank" rel="noopener">מקור</a>' : '') + '</div>' +
           '<div class="score-bar-line">' +
+            '<img class="score-bar-logo" src="' + LOGOS[a.id] + '" alt="">' +
             '<span class="score-num" style="color:var(--plum-ink)">' + textA + '</span>' +
             '<div class="bar-track"><div class="bar-fill a" style="width:' + wa + '%"></div></div>' +
           '</div>' +
           '<div class="score-bar-line">' +
+            '<img class="score-bar-logo" src="' + LOGOS[b.id] + '" alt="">' +
             '<span class="score-num" style="color:var(--gold-ink)">' + textB + '</span>' +
             '<div class="bar-track"><div class="bar-fill b" style="width:' + wb + '%"></div></div>' +
           '</div>' +
