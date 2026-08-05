@@ -39,7 +39,9 @@ Usage
     INPUT_XLSX   - local copy of the workbook (e.g. downloaded from GitHub)
     OUTPUT_XLSX  - path to write the updated workbook to
     --year YYYY  - only include channels whose latest poll is in this
-                   year or later (default: no filter)
+                   year or later (default: MIN_YEAR below - polls from
+                   before that year are never added; --year can raise
+                   this floor further but not lower it)
 
 This does NOT push anything to GitHub, and does NOT touch
 party-comparison-concepts.html. After running it:
@@ -69,6 +71,11 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 POLLS_URL = "https://themadad.com/polls26/"
+
+# This project only tracks polls for the current (2026) election cycle -
+# a channel whose latest poll predates this year is dropped entirely rather
+# than showing stale pre-cycle numbers. See main()'s --year handling below.
+MIN_YEAR = 2026
 
 # themadad.com field slug -> party name as used in this workbook's
 # "מועמידים 2026" / "חישוב 2026" tabs. Only fields for parties we track are
@@ -183,10 +190,17 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('input_xlsx')
     ap.add_argument('output_xlsx')
-    ap.add_argument('--year', type=int, default=None,
+    ap.add_argument('--year', type=int, default=MIN_YEAR,
                      help='Only include channels whose latest poll is in this year or later '
-                          '(default: no filter - include every channel with any poll)')
+                          '(default: {}, matching this project\'s cutoff - pre-{} polls are '
+                          'never included; pass a later year to filter further, not an earlier '
+                          'one)'.format(MIN_YEAR, MIN_YEAR))
     args = ap.parse_args()
+
+    if args.year < MIN_YEAR:
+        sys.exit("--year {} is before this project's cutoff ({}) - polls before {} are never "
+                  "added, so --year can only be {} or later.".format(
+                      args.year, MIN_YEAR, MIN_YEAR, MIN_YEAR))
 
     import openpyxl
 
@@ -195,8 +209,7 @@ def main():
     print("Found {} total poll records.".format(len(all_polls)))
 
     channel_polls = latest_per_channel(all_polls, min_year=args.year)
-    print("Latest poll per channel{}:".format(
-        " (>= {})".format(args.year) if args.year else ""))
+    print("Latest poll per channel (>= {}):".format(args.year))
     for chan, d in sorted(channel_polls.items(), key=lambda kv: kv[1]['date'], reverse=True):
         print("  {:14s} {}  ({})".format(chan, d['date'], d.get('pollster', '')))
 
