@@ -51,7 +51,7 @@ party-comparison-concepts.html. After running it:
      files, the same way earlier data updates in this project were done.
 
 Field mapping (themadad.com slug -> workbook party name), current as of
-2026-08-02 - update here if themadad.com adds/renames fields or if a
+2026-08-05 - update here if themadad.com adds/renames fields or if a
 tracked party's name changes.
 """
 
@@ -73,7 +73,7 @@ POLLS_URL = "https://themadad.com/polls26/"
 # themadad.com field slug -> party name as used in this workbook's
 # "מועמידים 2026" / "חישוב 2026" tabs. Only fields for parties we track are
 # listed; other fields in each poll record (avoda/meretz overlap, yamina,
-# economy, tikvahHadash, miluimnikim, unifiedArabList, ballad) are ignored.
+# economy, tikvahHadash, unifiedArabList, ballad) are ignored.
 FIELD_TO_PARTY = [
     ('likud', 'הליכוד'),
     ('utj', 'יהדות התורה'),
@@ -87,6 +87,7 @@ FIELD_TO_PARTY = [
     ('otzma', 'עוצמה יהודית'),
     ('bennett', 'ביחד (בנט-לפיד)'),
     ('eisenkot', 'ישר!'),
+    ('miluimnikim', 'טרופר-הנדל'),  # "בית ציוני - המילואימניקים" (Tropper-Hendel), added 2026-08
 ]
 
 SHEET_NAME = 'סקרים לפי ערוץ'
