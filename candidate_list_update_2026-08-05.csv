@@ -1,0 +1,34 @@
+party_id,party_name_he,position,name,gender,source_note,position_confirmed,expected_seats,current_seats,current_women,poll_avg,notes_summary,apply,source_url,retrieved_date
+golan,הדמוקרטים,1,יאיר גולן,ז,"רשימה רשמית (democrats.org.il/team, נשלף 5.8.2026) - יו""ר המפלגה",TRUE,10,4,3,,רשימה סופית רשמית,TRUE,https://democrats.org.il/team/,2026-08-05
+golan,הדמוקרטים,2,נעמה לזימי,נ,"רשימה רשמית (democrats.org.il/team, נשלף 5.8.2026)",TRUE,10,4,3,,,TRUE,https://democrats.org.il/team/,2026-08-05
+golan,הדמוקרטים,3,גלעד קריב,ז,"רשימה רשמית (democrats.org.il/team, נשלף 5.8.2026)",TRUE,10,4,3,,,TRUE,https://democrats.org.il/team/,2026-08-05
+golan,הדמוקרטים,4,אפרת רייטן,נ,"רשימה רשמית (democrats.org.il/team, נשלף 5.8.2026)",TRUE,10,4,3,,,TRUE,https://democrats.org.il/team/,2026-08-05
+golan,הדמוקרטים,5,יאיר פינק,ז,"רשימה רשמית (democrats.org.il/team, נשלף 5.8.2026)",TRUE,10,4,3,,,TRUE,https://democrats.org.il/team/,2026-08-05
+golan,הדמוקרטים,6,גבי לסקי,נ,"רשימה רשמית (democrats.org.il/team, נשלף 5.8.2026)",TRUE,10,4,3,,,TRUE,https://democrats.org.il/team/,2026-08-05
+golan,הדמוקרטים,7,עמרי רונן,ז,"רשימה רשמית (democrats.org.il/team, נשלף 5.8.2026)",TRUE,10,4,3,,,TRUE,https://democrats.org.il/team/,2026-08-05
+golan,הדמוקרטים,8,מיכל רוזין,נ,"רשימה רשמית (democrats.org.il/team, נשלף 5.8.2026)",TRUE,10,4,3,,,TRUE,https://democrats.org.il/team/,2026-08-05
+golan,הדמוקרטים,9,משה רדמן אבוטבול,ז,"רשימה רשמית (democrats.org.il/team, נשלף 5.8.2026)",TRUE,10,4,3,,,TRUE,https://democrats.org.il/team/,2026-08-05
+golan,הדמוקרטים,10,סומיה בשיר,נ,"רשימה רשמית (democrats.org.il/team, נשלף 5.8.2026)",TRUE,10,4,3,,,TRUE,https://democrats.org.il/team/,2026-08-05
+eisenkot,ישר!,1,גדי איזנקוט,ז,"רשימה רשמית (yasharwitheisenkot.com/team-member, נשלף 5.8.2026) - יו""ר המפלגה",TRUE,23,0,0,,,TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+eisenkot,ישר!,2,כמיל אבו רוקן,ז,"רשימה רשמית - סדר לפי הופעה באתר, המיקום הרשמי טרם פורסם",FALSE,23,0,0,,,TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+eisenkot,ישר!,3,תאיר איפרגן,נ,"רשימה רשמית - סדר לפי הופעה באתר, המיקום הרשמי טרם פורסם",FALSE,23,0,0,,,TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+eisenkot,ישר!,4,אושרת גני גונן,נ,"רשימה רשמית - סדר לפי הופעה באתר, המיקום הרשמי טרם פורסם",FALSE,23,0,0,,,TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+eisenkot,ישר!,5,ענבר הרוש גיטי,נ,"רשימה רשמית - סדר לפי הופעה באתר, המיקום הרשמי טרם פורסם",FALSE,23,0,0,,,TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+eisenkot,ישר!,6,ענבר יחזקאלי,נ,"רשימה רשמית - סדר לפי הופעה באתר, המיקום הרשמי טרם פורסם",FALSE,23,0,0,,,TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+eisenkot,ישר!,7,יורם כהן,ז,"רשימה רשמית - סדר לפי הופעה באתר, המיקום הרשמי טרם פורסם",FALSE,23,0,0,,,TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+eisenkot,ישר!,8,מתן כהנא,ז,"רשימה רשמית - סדר לפי הופעה באתר, המיקום הרשמי טרם פורסם",FALSE,23,0,0,,,TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+eisenkot,ישר!,9,שאול מרידור,ז,"רשימה רשמית - סדר לפי הופעה באתר, המיקום הרשמי טרם פורסם",FALSE,23,0,0,,,TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+eisenkot,ישר!,10,אורית פרקש הכהן,נ,"רשימה רשמית - סדר לפי הופעה באתר, המיקום הרשמי טרם פורסם",FALSE,23,0,0,,,TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+eisenkot,ישר!,11,אלכס ריף,נ,"רשימה רשמית - סדר לפי הופעה באתר, המיקום הרשמי טרם פורסם",FALSE,23,0,0,,,TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+eisenkot,ישר!,12,דבורה שריפיאן בכר,נ,"רשימה רשמית - סדר לפי הופעה באתר, המיקום הרשמי טרם פורסם",FALSE,23,0,0,,"רשימה רשמית (yasharwitheisenkot.com/team-member, נשלף 5.8.2026); האתר אינו ממספר את הרשימה - הסדר לפי סדר ההופעה באתר. 11 מתוך 23 המנדטים הצפויים משויכים לשמות ידועים; עבור 12 המקומות הנותרים (12-23) הונח יחס של 50% נשים, ממשיך את דפוס הריצ'רץ' מהמקום הידוע האחרון, ללא שיוך לשמות ספציפיים",TRUE,https://yasharwitheisenkot.com/team-member/,2026-08-05
+gantz,כחול לבן,1,בני גנץ,ז,"עמוד המפלגה (kachollavan.org.il/members) מציג רק הנהגה (5 שמות) - לא רשימת מועמדים מלאה; 0 מנדטים צפויים כך שאינו נספר בחישוב בכל מקרה",FALSE,0,8,2,1.6,,FALSE,https://kachollavan.org.il/members/,2026-08-05
+gantz,כחול לבן,2,פנינה תמנו שטה,נ,ראו הערה למעלה,FALSE,0,8,2,1.6,,FALSE,https://kachollavan.org.il/members/,2026-08-05
+gantz,כחול לבן,3,מיכאל ביטון,ז,ראו הערה למעלה,FALSE,0,8,2,1.6,,FALSE,https://kachollavan.org.il/members/,2026-08-05
+gantz,כחול לבן,4,אלון שוסטר,ז,ראו הערה למעלה,FALSE,0,8,2,1.6,,FALSE,https://kachollavan.org.il/members/,2026-08-05
+gantz,כחול לבן,5,יעל רון בן משה,נ,ראו הערה למעלה,FALSE,0,8,2,1.6,,FALSE,https://kachollavan.org.il/members/,2026-08-05
+odeh,"חדש תע""ל",1,יוסף ג'בארין,ז,"סדר כפי שמופיע באתר חד""ש (hadash.org.il/list) בפועל - אינו כולל את טיבי (תע""ל). ברשומה הקיימת טיבי הוכנס ידנית במקום 2 לפי בקשת המשתמש - יש להכריע אם לשמר את ההכנסה הידנית (ואז ושאחי יורדת למקום 6, מחוץ ל-5 המקומות הצפויים) לפני החלת שינוי זה",TRUE,5,5,1,5.3,,FALSE,https://hadash.org.il/list,2026-08-05
+odeh,"חדש תע""ל",2,ג'עפר פרח,ז,ראו הערה למעלה,TRUE,5,5,1,5.3,,FALSE,https://hadash.org.il/list,2026-08-05
+odeh,"חדש תע""ל",3,עופר כסיף,ז,ראו הערה למעלה,TRUE,5,5,1,5.3,,FALSE,https://hadash.org.il/list,2026-08-05
+odeh,"חדש תע""ל",4,יוסף עטאונה,ז,ראו הערה למעלה,TRUE,5,5,1,5.3,,FALSE,https://hadash.org.il/list,2026-08-05
+odeh,"חדש תע""ל",5,נהאיה ושאחי,נ,ראו הערה למעלה,TRUE,5,5,1,5.3,,FALSE,https://hadash.org.il/list,2026-08-05
+odeh,"חדש תע""ל",6,איאס נאטור,ז,ראו הערה למעלה,TRUE,5,5,1,5.3,,FALSE,https://hadash.org.il/list,2026-08-05
