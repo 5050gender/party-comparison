@@ -56,7 +56,7 @@ This does NOT push anything to GitHub. After running it:
   2. Commit both files (or just the HTML, if the xlsx didn't change) the
      same way earlier updates in this project were done.
 
-Party id <-> workbook party-name mapping, current as of 2026-08-03 - update
+Party id <-> workbook party-name mapping, current as of 2026-08-05 - update
 here if a tracked party is renamed, or if a party is added/removed from the
 comparison.
 """
@@ -87,6 +87,7 @@ ID_TO_XLSX_PARTY = [
     ('bengvir', 'עוצמה יהודית'),
     ('bennett', 'ביחד (בנט-לפיד)'),
     ('eisenkot', 'ישר!'),
+    ('tropperhendel', 'טרופר-הנדל'),  # "בית ציוני - המילואימניקים" (Tropper-Hendel), added 2026-08
 ]
 
 
