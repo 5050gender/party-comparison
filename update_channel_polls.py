@@ -30,7 +30,7 @@ This script:
   5. Maps the site's field slugs to the workbook's party names and writes
      them into the "סקרים לפי ערוץ" tab (values only - openpyxl formulas
      in "חישוב לפי ערוץ" and elsewhere are left untouched and will
-     recalculate from the new inputs).
+     recalculate from the new inputs). 
 
 Usage
 -----
