@@ -233,7 +233,7 @@
               <svg class="chip-chev" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
-          <p class="picker-hint">הקישו על מפלגה כדי להחליף</p>
+          <p class="picker-hint">כדי לעבור בין מפלגות יש להקליק על אייקון המפלגה מעל</p>
 
           <div class="channel-tabs" id="channelTabs" role="tablist"></div>
           <p class="channel-tabs-caption" id="channelCaption"></p>
@@ -367,8 +367,10 @@
           chA = cd[a.id] || null;
           chB = cd[b.id] || null;
         }
-        var noDataA = !!(chA && chA.noData);
-        var noDataB = !!(chB && chB.noData);
+        var newPartyA = (!isExp && (m.key === 'seats' || m.key === 'women' || m.key === 'pct') && Number(a.seats) === 0);
+        var newPartyB = (!isExp && (m.key === 'seats' || m.key === 'women' || m.key === 'pct') && Number(b.seats) === 0);
+        var noDataA = !!(chA && chA.noData) || newPartyA;
+        var noDataB = !!(chB && chB.noData) || newPartyB;
         var rawA = (chA && subKey != null) ? Number(chA[subKey]) || 0 : (Number(a[m.key]) || 0);
         var rawB = (chB && subKey != null) ? Number(chB[subKey]) || 0 : (Number(b[m.key]) || 0);
         var wa, wb;
@@ -381,8 +383,8 @@
           wa = noDataA ? 0 : Math.max(3, Math.round((rawA / maxv) * 100));
           wb = noDataB ? 0 : Math.max(3, Math.round((rawB / maxv) * 100));
         }
-        var textA = noDataA ? 'אין נתונים' : esc(m.fmt(rawA));
-        var textB = noDataB ? 'אין נתונים' : esc(m.fmt(rawB));
+        var textA = newPartyA ? 'מפלגה חדשה' : (noDataA ? 'אין נתונים' : esc(m.fmt(rawA)));
+        var textB = newPartyB ? 'מפלגה חדשה' : (noDataB ? 'אין נתונים' : esc(m.fmt(rawB)));
         html += '<div class="score-row">' +
           '<div class="score-label">' + esc(m.label) + (m.url ? ' <a href="' + m.url + '" target="_blank" rel="noopener">מקור</a>' : '') + '</div>' +
           '<div class="score-bar-line">' +
