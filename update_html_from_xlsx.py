@@ -88,6 +88,7 @@ ID_TO_XLSX_PARTY = [
     ('bennett', 'ביחד (בנט-לפיד)'),
     ('eisenkot', 'ישר!'),
     ('tropperhendel', 'טרופר-הנדל'),  # "בית ציוני - המילואימניקים" (Tropper-Hendel), added 2026-08
+#    ('erdan', 'האחדות'),  # Gilad Erdan + Yuli Edelstein's party, founded 2026-08-06, added 2026-08
 ]
 
 

@@ -137,6 +137,7 @@ FIELD_TO_PARTY = [
     ('bennett', 'ביחד (בנט-לפיד)'),
     ('eisenkot', 'ישר!'),
     ('miluimnikim', 'טרופר-הנדל'),  # "בית ציוני - המילואימניקים" (Tropper-Hendel), added 2026-08
+    ('erdan', 'האחדות'),  # Gilad Erdan + Yuli Edelstein's party, founded 2026-08-06, added 2026-08
 ]
 
 # themadad.com's average-table party label (as it appears in the page's
@@ -158,10 +159,22 @@ AVERAGE_LABEL_TO_PARTY = [
     ('רע"מ', 'רע"מ'),
     ('הציונות הדתית', 'הציונות הדתית'),
     ('טרופר-הנדל', 'טרופר-הנדל'),
+    ('בית ציוני-המילואימניקים', 'טרופר-הנדל'),  # site's actual on-page label for this party
     ('בל"ד', 'בל"ד'),
     ('כחול לבן', 'כחול לבן'),
     ('רשימה ערבית מאוחדת', 'רשימה ערבית מאוחדת'),
+    ('מפלגה בראשות גלעד ארדן ויולי אדלשטיין', 'האחדות'),
 ]
+
+# Labels themadad.com's averageMaker.php still emits but that this project
+# deliberately does not track - warn about anything NOT in this list instead.
+# - 'יש עתיד': legacy row left over from before Lapid folded into the
+#   Bennett-Lapid ticket; the merged party is tracked separately as
+#   'ביחד (בנט ולפיד)' above, so this row is a stale duplicate, not a
+#   real new/renamed party.
+IGNORED_AVERAGE_LABELS = {
+    'יש עתיד',
+}
 
 SHEET_NAME = 'סקרים לפי ערוץ'
 AVG_SHEET_NAME = 'סקר 2026'
@@ -357,9 +370,12 @@ def write_average_sheet(wb, party_averages):
             name_to_row[_normalize_quotes(str(name))] = row
 
     label_lookup = {_normalize_quotes(label): party for label, party in AVERAGE_LABEL_TO_PARTY}
+    ignored_labels = {_normalize_quotes(label) for label in IGNORED_AVERAGE_LABELS}
 
     updated, missing, unmatched = [], [], []
     for site_label, avg in party_averages.items():
+        if site_label in ignored_labels:
+            continue
         party_name = label_lookup.get(site_label)
         if party_name is None:
             unmatched.append(site_label)
