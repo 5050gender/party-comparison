@@ -355,11 +355,15 @@
     var maxFigurePx = 100;
     function figHeight(women, noData) {
       if (noData || women <= 0) return Math.round(maxFigurePx * 0.12);
-      return Math.max(Math.round(maxFigurePx * 0.22), Math.round((women / maxWomen) * maxFigurePx));
+      return Math.max(Math.round(maxFigurePx * 0.4), Math.round((women / maxWomen) * maxFigurePx));
     }
     var aHeightPx = figHeight(aWomen, noDataA);
     var bHeightPx = figHeight(bWomen, noDataB);
-    var numberFontSize = Math.round(Math.max(aHeightPx, bHeightPx) * 0.75);
+    // Each side's number is sized off its OWN figure height (not the shared max) so a
+    // small figure doesn't end up paired with an oversized number next to it - that
+    // mismatch is what made the smaller side look broken/skewed on narrow screens.
+    var aNumberFontSize = Math.max(22, Math.round(aHeightPx * 0.6));
+    var bNumberFontSize = Math.max(22, Math.round(bHeightPx * 0.6));
 
     var aPctText = noDataA ? 'אין נתונים' : (aPct + '%');
     var bPctText = noDataB ? 'אין נתונים' : (bPct + '%');
@@ -387,14 +391,14 @@
         '<div class="exp-figures-row">' +
           '<div class="exp-figure-col">' +
             '<div class="exp-figure-inner">' +
-              '<span class="exp-num" style="font-size:' + numberFontSize + 'px;color:var(--plum-ink)">' + aWomenText + '</span>' +
+              '<span class="exp-num" style="font-size:' + aNumberFontSize + 'px;color:var(--plum-ink)">' + aWomenText + '</span>' +
               '<img class="exp-silhouette" src="' + SILHOUETTE_PLUM + '" style="height:' + aHeightPx + 'px" alt="">' +
             '</div>' +
             '<span class="exp-figure-caption">מספר נשים צפויות במפלגת ' + esc(a.party) + '</span>' +
           '</div>' +
           '<div class="exp-figure-col">' +
             '<div class="exp-figure-inner">' +
-              '<span class="exp-num" style="font-size:' + numberFontSize + 'px;color:var(--gold-ink)">' + bWomenText + '</span>' +
+              '<span class="exp-num" style="font-size:' + bNumberFontSize + 'px;color:var(--gold-ink)">' + bWomenText + '</span>' +
               '<img class="exp-silhouette" src="' + SILHOUETTE_GOLD + '" style="height:' + bHeightPx + 'px" alt="">' +
             '</div>' +
             '<span class="exp-figure-caption">מספר נשים צפויות במפלגת ' + esc(b.party) + '</span>' +
