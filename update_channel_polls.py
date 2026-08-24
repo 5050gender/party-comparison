@@ -122,13 +122,22 @@ MIN_YEAR = 2026
 # themadad.com field slug -> party name as used in this workbook's
 # "מועמידים 2026" / "חישוב 2026" tabs. Only fields for parties we track are
 # listed; other fields in each poll record (avoda/meretz overlap, yamina,
-# economy, tikvahHadash, unifiedArabList, ballad) are ignored.
+# economy, tikvahHadash) are ignored. A tuple of field slugs (instead of a
+# single string) means those per-channel fields are summed into that one
+# tracked party - see hadashTal/ballad/unifiedArabList below.
 FIELD_TO_PARTY = [
     ('likud', 'הליכוד'),
     ('utj', 'יהדות התורה'),
     ('shas', 'ש"ס'),
     ('bw', 'כחול לבן'),
-    ('hadashTal', 'חדש תע"ל'),
+    (('hadashTal', 'ballad', 'unifiedArabList'), 'הרשימה המשותפת'),  # חד"ש-תע"ל + בל"ד merged &
+                                             # renamed to "הרשימה המשותפת", 2026-08. themadad.com's
+                                             # per-channel poll records used 'hadashTal'(+'ballad')
+                                             # for this party through ~2026-08-19, then switched to
+                                             # reporting it under 'unifiedArabList' from ~2026-08-20
+                                             # on (confirmed empirically - each poll record populates
+                                             # only one of the three, never more than one), so sum all
+                                             # three to stay correct across the transition.
     ('israelBeitanu', 'ישראל ביתנו'),
     ('avoda', 'הדמוקרטים'),        # post-Meretz/Avoda merger, site kept the old slug
     ('smotrich', 'הציונות הדתית'),
@@ -155,12 +164,14 @@ AVERAGE_LABEL_TO_PARTY = [
     ('ש"ס', 'ש"ס'),
     ('יהדות התורה', 'יהדות התורה'),
     ('עוצמה יהודית', 'עוצמה יהודית'),
-    ('חדש תע"ל', 'חדש תע"ל'),
+    ('הרשימה המשותפת', 'הרשימה המשותפת'),  # חד"ש-תע"ל + בל"ד merged & renamed to this, 2026-08 -
+                                     # this combined label is now the site's sole live average
+                                     # for the merger; the old direct 'חדש תע"ל'/'בל"ד' labels
+                                     # below are stale leftovers, see IGNORED_AVERAGE_LABELS.
     ('רע"מ', 'רע"מ'),
     ('הציונות הדתית', 'הציונות הדתית'),
     ('טרופר-הנדל', 'טרופר-הנדל'),
     ('בית ציוני-המילואימניקים', 'טרופר-הנדל'),  # site's actual on-page label for this party
-    ('בל"ד', 'בל"ד'),
     ('כחול לבן', 'כחול לבן'),
     ('רשימה ערבית מאוחדת', 'רשימה ערבית מאוחדת'),
     ('מפלגה בראשות גלעד ארדן ויולי אדלשטיין', 'האחדות'),
@@ -172,8 +183,15 @@ AVERAGE_LABEL_TO_PARTY = [
 #   Bennett-Lapid ticket; the merged party is tracked separately as
 #   'ביחד (בנט ולפיד)' above, so this row is a stale duplicate, not a
 #   real new/renamed party.
+# - 'חדש תע"ל' / 'בל"ד': stale leftover rows from before the two merged into
+#   "הרשימה המשותפת" (2026-08, see AVERAGE_LABEL_TO_PARTY above). The site's
+#   own average table and current-Knesset comparison table both show only
+#   the combined "הרשימה המשותפת" figure now, so these two are ignored
+#   rather than mapped, to avoid double-counting the merged party's average.
 IGNORED_AVERAGE_LABELS = {
     'יש עתיד',
+    'חדש תע"ל',
+    'בל"ד',
 }
 
 SHEET_NAME = 'סקרים לפי ערוץ'
@@ -321,6 +339,20 @@ def latest_per_channel(all_polls, min_year=None):
     return by_publisher
 
 
+def _field_value(record, field):
+    """Look up one FIELD_TO_PARTY entry's value in a poll record. `field` is
+    either a single themadad.com field slug, or a tuple of slugs whose
+    values should be summed (see FIELD_TO_PARTY's hadashTal/ballad entry).
+    Missing/blank source fields are dropped rather than treated as 0, so a
+    party only comes back None if ALL its source fields are absent."""
+    fields = field if isinstance(field, (tuple, list)) else (field,)
+    vals = [record.get(f) for f in fields]
+    vals = [v for v in vals if v not in (None, '')]
+    if not vals:
+        return None
+    return sum(int(v) for v in vals)
+
+
 def write_sheet(wb, channel_polls):
     """(Re)write the סקרים לפי ערוץ tab with the given {channel: poll_record} data."""
     if SHEET_NAME in wb.sheetnames:
@@ -335,8 +367,7 @@ def write_sheet(wb, channel_polls):
         d = channel_polls[chan]
         row = [chan, d.get('date'), d.get('pollster'), d.get('respondents')]
         for field, _ in FIELD_TO_PARTY:
-            val = d.get(field)
-            row.append(int(val) if val not in (None, '') else None)
+            row.append(_field_value(d, field))
         ws.append(row)
     return channel_order
 

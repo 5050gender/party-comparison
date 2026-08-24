@@ -79,7 +79,7 @@ ID_TO_XLSX_PARTY = [
     ('goldknopf', 'יהדות התורה'),
     ('deri', 'ש"ס'),
     ('gantz', 'כחול לבן'),
-    ('odeh', 'חדש תע"ל'),
+    ('odeh', 'הרשימה המשותפת'),  # was 'חדש תע"ל'; renamed after the 2026-08 merger with בל"ד
     ('liberman', 'ישראל ביתנו'),
     ('golan', 'הדמוקרטים'),
     ('smotrich', 'הציונות הדתית'),
