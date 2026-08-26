@@ -147,6 +147,7 @@ FIELD_TO_PARTY = [
     ('eisenkot', 'ישר!'),
     ('miluimnikim', 'טרופר-הנדל'),  # "בית ציוני - המילואימניקים" (Tropper-Hendel), added 2026-08
     ('erdan', 'האחדות'),  # Gilad Erdan + Yuli Edelstein's party, founded 2026-08-06, added 2026-08
+    ('winter', 'עמך ישראל'),  # Ofer Winter's party, launched 2026-08-25, added 2026-08
 ]
 
 # themadad.com's average-table party label (as it appears in the page's
@@ -175,6 +176,7 @@ AVERAGE_LABEL_TO_PARTY = [
     ('כחול לבן', 'כחול לבן'),
     ('רשימה ערבית מאוחדת', 'רשימה ערבית מאוחדת'),
     ('מפלגה בראשות גלעד ארדן ויולי אדלשטיין', 'האחדות'),
+    ('עופר וינטר', 'עמך ישראל'),  # Ofer Winter's party, launched 2026-08-25, added 2026-08
 ]
 
 # Labels themadad.com's averageMaker.php still emits but that this project

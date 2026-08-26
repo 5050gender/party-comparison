@@ -80,6 +80,7 @@ ID_TO_XLSX_PARTY = [
     ('deri', 'ש"ס'),
     ('gantz', 'כחול לבן'),
     ('odeh', 'הרשימה המשותפת'),  # was 'חדש תע"ל'; renamed after the 2026-08 merger with בל"ד
+    ('winter', 'עמך ישראל'),  # Ofer Winter's new party, launched 2026-08-25
     ('liberman', 'ישראל ביתנו'),
     ('golan', 'הדמוקרטים'),
     ('smotrich', 'הציונות הדתית'),

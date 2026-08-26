@@ -12,29 +12,51 @@ Optionally (with --with-pie-charts), also draws a pie chart per poll showing
 the expected number of women split across party "blocs" (groups), using the
 party -> bloc mapping in mapping.csv (columns: מפלגה, גוש).
 
+Optionally (with --create-email-drafts), also creates a Gmail DRAFT (never
+sent automatically) per outlet, summarizing that poll and attaching its
+charts.
+
 Requirements:
     pip install pandas matplotlib openpyxl python-bidi
 
 Usage:
     python plot_women_by_outlet.py [--input-dir DIR] [--output-dir DIR]
                                     [--with-pie-charts] [--mapping-csv FILE]
+                                    [--create-email-drafts]
+                                    [--gmail-app-password PASSWORD]
 
-    --input-dir         Folder to search for party-comparison-updated-vXX.xlsx
-                         files (defaults to the current directory). The file
-                         with the highest vXX number is used.
-    --output-dir        Folder to write the .jpg files to (defaults to the
-                         input directory).
-    --with-pie-charts   Also generate a per-poll pie chart of expected women
-                         by bloc (optional; off by default).
-    --mapping-csv       Path to the party -> bloc mapping CSV (defaults to
-                         mapping.csv inside --input-dir). Only used with
-                         --with-pie-charts.
+    --input-dir            Folder to search for
+                            party-comparison-updated-vXX.xlsx files (defaults
+                            to the current directory). The file with the
+                            highest vXX number is used.
+    --output-dir            Folder to write the .jpg files to (defaults to
+                            the input directory).
+    --with-pie-charts       Also generate a per-poll pie chart of expected
+                            women by bloc (optional; off by default).
+    --mapping-csv           Path to the party -> bloc mapping CSV (defaults
+                            to mapping.csv inside --input-dir). Used with
+                            --with-pie-charts and/or --create-email-drafts.
+    --create-email-drafts   Also create a Gmail draft per outlet (not sent)
+                            summarizing the poll, with the charts attached.
+                            Requires IMAP enabled on the Gmail account and a
+                            Gmail App Password (see --gmail-app-password).
+    --gmail-app-password    Gmail App Password for the sending account
+                            (Google Account -> Security -> 2-Step
+                            Verification -> App Passwords -- a normal login
+                            password will NOT work). Defaults to the
+                            GMAIL_APP_PASSWORD environment variable, which is
+                            safer than passing it on the command line.
 """
 
 import argparse
+import imaplib
 import math
+import os
 import re
 import sys
+import time
+from email.message import EmailMessage
+from email.utils import formataddr
 from pathlib import Path
 
 # On Windows, the console's default codepage (e.g. cp1252) can't encode
@@ -50,7 +72,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon, Patch
+from matplotlib.patches import Wedge
 import pandas as pd
 
 try:
@@ -71,6 +93,14 @@ COL_SEATS = "מנדטים"
 COL_WOMEN = "כמות נשים צפויה"
 COL_MEN = "כמות גברים צפויה"
 
+# "Mean poll" sheet: an aggregate (average-of-polls) estimate per party, not
+# tied to any single outlet/date. Shares the same women/men column names as
+# the per-outlet sheet, but its seats column is named differently, and it has
+# a trailing totals row that must be excluded before plotting.
+MEAN_SHEET_NAME = "חישוב 2026"
+MEAN_COL_SEATS = "מנדטים צפויים"
+TOTAL_ROW_LABEL = 'סה"כ'
+
 COLOR_WOMEN = "#7B2D8E"   # purple
 COLOR_MEN = "#BFBFBF"     # light gray
 
@@ -82,19 +112,30 @@ MAPPING_COL_GROUP = "גוש"
 # other bloc gets a progressively lighter tint of that same purple (never an
 # unrelated hue), so the two charts read as one visual system.
 OPPOSITION_GROUP_NAME = "אופוזיציה"
+COALITION_GROUP_NAME = "קואליציה"
 OTHER_GROUP_TINTS = [0.55, 0.80, 0.92]  # lighten amounts for non-opposition blocs
 
-# Pseudo-3D pie geometry: vertical squash (perspective tilt) and extrusion
-# depth, both as fractions of the pie radius.
-PIE_SQUASH = 0.58
-PIE_DEPTH = 0.16
+# --- Email drafts (--create-email-drafts) ---------------------------------
+# Creates a Gmail DRAFT (never sends) per outlet, summarizing that poll and
+# attaching its bar + bloc charts. Uses IMAP APPEND to Gmail's Drafts folder,
+# which requires IMAP enabled on the account and a 16-character Gmail "App
+# Password" (Google Account -> Security -> 2-Step Verification -> App
+# Passwords) -- a normal Gmail login password will NOT work here. Pass the
+# app password via --gmail-app-password, or (safer, keeps it out of shell
+# history) set the GMAIL_APP_PASSWORD environment variable.
+EMAIL_SENDER = "einatact50@gmail.com"
+EMAIL_TO_NAME = "info.5050@merkazim.org"
+EMAIL_TO_ADDR = "info@5050il.co.il"
+IMAP_HOST = "imap.gmail.com"
+IMAP_DRAFTS_FOLDER = "[Gmail]/Drafts"
+
+# Half-donut ("half bagel") geometry: inner/outer ring radius and the
+# angular gap left between adjacent segments, in degrees.
+DONUT_OUTER_R = 1.0
+DONUT_INNER_R = 0.55
+DONUT_GAP_DEG = 1.5
 
 VERSION_RE = re.compile(r"^party-comparison-updated-v(\d+)\.xlsx$")
-
-# How far the pseudo-3D extrusion reaches, in x-axis units (bar-index
-# spacing) and y-axis units (data units) respectively.
-DEPTH_X = 0.16
-DEPTH_Y_FRAC = 0.035  # fraction of tick_max
 
 
 def _shade(color, amount):
@@ -107,105 +148,40 @@ def _shade(color, amount):
     return (r, g, b)
 
 
-def draw_3d_bar_segment(ax, center, y0, y1, width, color, draw_top, depth_y, zorder_base=3):
-    """Draw one stacked segment (from y0 to y1) of a pseudo-3D bar: a flat
-    front face, a darker side face extruded to the upper-right, and
-    (only for the topmost segment) a lighter top cap."""
-    if y1 <= y0:
-        return
-    left = center - width / 2
-    right = center + width / 2
-    dx, dy = DEPTH_X, depth_y
-
-    front_color = color
-    side_color = _shade(color, -0.30)
-    top_color = _shade(color, 0.35)
-
-    # Front face
-    ax.add_patch(Polygon(
-        [(left, y0), (right, y0), (right, y1), (left, y1)],
-        closed=True, facecolor=front_color, edgecolor="none",
-        zorder=zorder_base,
-    ))
-    # Side (right) face
-    ax.add_patch(Polygon(
-        [(right, y0), (right + dx, y0 + dy), (right + dx, y1 + dy), (right, y1)],
-        closed=True, facecolor=side_color, edgecolor="none",
-        zorder=zorder_base - 0.5,
-    ))
-    # Top cap (only for the segment that forms the visible top of the stack)
-    if draw_top:
-        ax.add_patch(Polygon(
-            [(left, y1), (right, y1), (right + dx, y1 + dy), (left + dx, y1 + dy)],
-            closed=True, facecolor=top_color, edgecolor="none",
-            zorder=zorder_base + 0.5,
-        ))
-
-
-def _pie_point(theta_deg, r, squash=PIE_SQUASH):
-    """A point on the pie's rim/interior at angle `theta_deg` (standard math
-    convention: 0=east, counterclockwise-positive) and radius `r`, with the
-    y-coordinate squashed to fake the tilted-disk 3D perspective."""
+def _donut_point(theta_deg, r):
+    """A point at angle `theta_deg` (standard math convention: 0=east,
+    counterclockwise-positive) and radius `r`, centered on the origin."""
     t = math.radians(theta_deg)
-    return r * math.cos(t), r * squash * math.sin(t)
+    return r * math.cos(t), r * math.sin(t)
 
 
-def draw_3d_pie(ax, values, colors, start_angle=90, radius=1.0,
-                 squash=PIE_SQUASH, depth=PIE_DEPTH):
-    """Draw a pseudo-3D pie: a darker extruded side wall along the front
-    (bottom) rim, topped with the flat elliptical pie itself. `values`
-    entries of 0 simply produce a degenerate (invisible) wedge but still
-    reserve their angular position, which callers can use to anchor a
-    callout. Returns the wedge boundary angles (len(values) + 1)."""
+def draw_half_donut(ax, values, colors, start_angle=180, end_angle=0,
+                     outer_r=DONUT_OUTER_R, inner_r=DONUT_INNER_R,
+                     gap_deg=DONUT_GAP_DEG):
+    """Draw a flat half-donut ("half bagel"): a semicircular ring split into
+    segments proportional to `values`, opening downward (start_angle=180 on
+    the left sweeping clockwise to end_angle=0 on the right, through the top).
+    A `values` entry of 0 draws no ring segment but still reserves its
+    angular position, which callers can use to place a callout label.
+    Returns the segment boundary angles (len(values) + 1)."""
     total = sum(values)
+    span = start_angle - end_angle
     boundaries = [start_angle]
     theta = start_angle
     for v in values:
-        theta -= (v / total) * 360.0 if total else 0.0
+        theta -= (v / total) * span if total else 0.0
         boundaries.append(theta)
 
-    side_colors = [_shade(c, -0.35) for c in colors]
-
-    def wedge_index(theta):
-        for i in range(len(values)):
-            hi, lo = boundaries[i], boundaries[i + 1]
-            if hi >= theta >= lo - 1e-6:
-                return i
-        return len(values) - 1
-
-    # Side wall: sample the rim finely and keep only the front-facing
-    # (bottom) half, i.e. where the un-squashed sine is negative.
-    step = 1.0
-    n_steps = int(360 / step)
-    rim_thetas = [boundaries[0] - i * step for i in range(n_steps + 1)]
-    for i in range(len(rim_thetas) - 1):
-        thA, thB = rim_thetas[i], rim_thetas[i + 1]
-        mid = (thA + thB) / 2
-        if math.sin(math.radians(mid)) < 0:
-            widx = wedge_index(mid)
-            if values[widx] <= 0:
-                continue
-            xA, yA = _pie_point(thA, radius, squash)
-            xB, yB = _pie_point(thB, radius, squash)
-            ax.add_patch(Polygon(
-                [(xA, yA), (xB, yB), (xB, yB - depth), (xA, yA - depth)],
-                closed=True, facecolor=side_colors[widx], edgecolor="none",
-                zorder=1,
-            ))
-
-    # Top face: the flat (elliptical) pie wedges, drawn over the side walls.
     for i, v in enumerate(values):
         if v <= 0:
             continue
-        t0, t1 = boundaries[i], boundaries[i + 1]
-        n = max(2, int(abs(t0 - t1)) + 1)
-        pts = [(0.0, 0.0)]
-        for k in range(n):
-            t = t0 + (t1 - t0) * k / (n - 1)
-            pts.append(_pie_point(t, radius, squash))
-        pts.append((0.0, 0.0))
-        ax.add_patch(Polygon(pts, closed=True, facecolor=colors[i],
-                              edgecolor="white", linewidth=2, zorder=3))
+        lo, hi = sorted((boundaries[i], boundaries[i + 1]))
+        g = min(gap_deg, (hi - lo) * 0.15)
+        lo, hi = lo + g, hi - g
+        ax.add_patch(Wedge(
+            (0.0, 0.0), outer_r, lo, hi, width=outer_r - inner_r,
+            facecolor=colors[i], edgecolor="white", linewidth=2, zorder=3,
+        ))
 
     return boundaries
 
@@ -244,12 +220,27 @@ def sanitize_filename(text: str) -> str:
     return text
 
 
-def build_title(outlet: str, date_str: str, total_women: int) -> str:
-    return "\n".join([
-        rtl('מספר ח"כים וח"כיות צפויה'),
-        rtl(f"לפי סקר {outlet} מה- {date_str}"),
-        rtl(f"רק {total_women} נשים בכנסת הבאה"),
-    ])
+def build_detail_lines(outlet: str, date_str: str) -> str:
+    """Single-line subtitle (smaller font, right-aligned when drawn)."""
+    return rtl(f'מספר ח"כים וח"כיות בכנסת הבאה לפי סקר {outlet} מה- {date_str}')
+
+
+def build_leading_line(parties: list, women: list) -> str:
+    """Top, larger-font headline: the party with the most expected women,
+    e.g. 'הליכוד מובילה עם 5 נשים'. Ties keep the first occurrence in the
+    given (seat-sorted) order."""
+    if not parties:
+        return ""
+    max_women = max(women)
+    idx = women.index(max_women)
+    leading_party = parties[idx]
+    return rtl(f"{leading_party} מובילה עם {max_women} נשים")
+
+
+def build_women_count_line(total_women: int) -> str:
+    """Prominent 'N women' line, shared by the bloc (half-donut) chart's
+    per-outlet and mean-poll variants."""
+    return rtl(f"רק {total_women} נשים בכנסת הבאה")
 
 
 def load_mapping(mapping_csv: Path) -> dict:
@@ -258,83 +249,111 @@ def load_mapping(mapping_csv: Path) -> dict:
     return dict(zip(map_df[MAPPING_COL_PARTY], map_df[MAPPING_COL_GROUP]))
 
 
-def plot_poll(df_poll: pd.DataFrame, outlet: str, date_raw, out_path: Path) -> None:
-    # Match the reference chart's party ordering: sorted by total seats
-    # (מנדטים) descending, ties keep the workbook's original row order.
-    df_sorted = df_poll.sort_values(COL_SEATS, ascending=False, kind="stable")
+def build_mean_detail_lines() -> str:
+    """Single-line subtitle for the mean-poll chart (smaller font,
+    right-aligned when drawn)."""
+    return rtl('מספר ח"כים וח"כיות בכנסת הבאה לפי ממוצע הסקרים')
 
-    parties = df_sorted[COL_PARTY].tolist()
-    women = df_sorted[COL_WOMEN].tolist()
-    men = df_sorted[COL_MEN].tolist()
+
+def render_bar_chart(parties: list, women: list, men: list, detail_lines: str,
+                      out_path: Path) -> None:
+    """Shared flat-horizontal-bar renderer, used for both the per-outlet
+    poll charts and the mean-poll (average-of-polls) chart."""
     totals = [w + m for w, m in zip(women, men)]
 
-    total_women = int(df_poll[COL_WOMEN].sum())
-    date_str = format_poll_date(date_raw)
+    y_labels = [rtl(p) for p in parties]
+    y = list(range(len(parties)))
 
-    x_labels = [rtl(p) for p in parties]
-    x = range(len(parties))
+    fig, ax = plt.subplots(figsize=(12, 9))
 
-    fig, ax = plt.subplots(figsize=(13, 8.5))
-
-    # Standard y-axis range (just a little headroom above the tallest bar),
-    # computed up front since the 3D extrusion depth is scaled from it.
-    max_total = max(totals) if totals else 0
-    tick_max = max(5, (max_total // 5 + 1) * 5)
-    y_max = tick_max * 1.08
-    depth_y = tick_max * DEPTH_Y_FRAC
-
-    width = 0.6
-    for i, (w, m) in enumerate(zip(women, men)):
-        draw_3d_bar_segment(ax, i, 0, w, width, COLOR_WOMEN, draw_top=(m == 0 and w > 0), depth_y=depth_y)
-        draw_3d_bar_segment(ax, i, w, w + m, width, COLOR_MEN, draw_top=(m > 0), depth_y=depth_y)
-
-    # Legend proxies (the bars themselves are drawn as custom polygons, not
-    # ax.bar patches, so they need explicit legend handles).
-    legend_handles = [
-        Patch(facecolor=COLOR_WOMEN, label=rtl("כמות נשים צפויה")),
-        Patch(facecolor=COLOR_MEN, label=rtl("כמות גברים צפויה")),
-    ]
+    # Women form the base of each bar (starting at the left, x=0), with men
+    # stacked after them (further right).
+    bar_height = 0.62
+    ax.barh(y, women, height=bar_height, color=COLOR_WOMEN,
+            label=rtl("כמות נשים צפויה"), zorder=3)
+    ax.barh(y, men, left=women, height=bar_height, color=COLOR_MEN,
+            label=rtl("כמות גברים צפויה"), zorder=3)
 
     # Data labels inside each non-zero segment
     for i, (w, m) in enumerate(zip(women, men)):
         if w > 0:
-            ax.text(i, w / 2, str(w), ha="center", va="center",
-                    color="white", fontsize=23, fontweight="bold", zorder=4)
+            ax.text(w / 2, i, str(w), ha="center", va="center",
+                    color="white", fontsize=18, fontweight="bold", zorder=4)
         if m > 0:
-            ax.text(i, w + m / 2, str(m), ha="center", va="center",
-                    color="black", fontsize=23, fontweight="bold", zorder=4)
+            ax.text(w + m / 2, i, str(m), ha="center", va="center",
+                    color="black", fontsize=18, fontweight="bold", zorder=4)
         if w == 0 and m == 0:
-            ax.text(i, 0.4, "0", ha="center", va="bottom",
-                    color="black", fontsize=19, fontweight="bold", zorder=4)
+            ax.text(0.4, i, "0", ha="left", va="center",
+                    color="black", fontsize=15, fontweight="bold", zorder=4)
 
-    ax.set_xlim(-0.5, len(parties) - 1 + 0.5 + DEPTH_X)
-    ax.set_ylim(0, y_max)
-    ax.set_yticks(range(0, tick_max + 1, 5))
+    # Standard x-axis range (just a little headroom past the longest bar).
+    # The axis itself is hidden (data labels are printed on the bars), so
+    # this range only controls layout, not any visible ticks/labels.
+    max_total = max(totals) if totals else 0
+    tick_max = max(5, (max_total // 5 + 1) * 5)
+    x_max = tick_max * 1.08
+    ax.set_xlim(0, x_max)
+    ax.set_xticks([])
 
-    ax.set_xticks(list(x))
-    ax.set_xticklabels(x_labels, rotation=35, ha="right", fontsize=17)
+    ax.set_yticks(y)
+    ax.set_yticklabels(y_labels, fontsize=15)
+    # Largest party first in `parties` -> drawn at the top of the chart.
+    ax.invert_yaxis()
 
-    for spine in ("top", "right", "left"):
+    for spine in ("top", "right", "left", "bottom"):
         ax.spines[spine].set_visible(False)
-    ax.tick_params(axis="y", length=0, labelsize=16)
-    ax.tick_params(axis="x", length=0)
+    ax.tick_params(axis="x", length=0, labelbottom=False)
+    ax.tick_params(axis="y", length=0)
 
-    title = build_title(outlet, date_str, total_women)
-    # Floated inside the plot area, over the open space above the shorter
-    # middle bars (like a text box dragged onto the chart in Excel) rather
-    # than anchored to the top edge or pushing the graph down.
-    ax.text(0.5, 0.75, title, transform=ax.transAxes, ha="center", va="center",
-            fontsize=27, linespacing=1.5, zorder=5)
+    # Title block at the very top of the figure (not overlaid on the bars).
+    # A larger-font headline (leading party by expected women) sits on top,
+    # with the previous two-line detail block underneath it.
+    leading_line = build_leading_line(parties, women)
+    fig.text(0.95, 0.985, leading_line, ha="right", va="top",
+              fontsize=29, fontweight="bold", linespacing=1.3, zorder=5)
+    fig.text(0.95, 0.895, detail_lines, ha="right", va="top",
+              fontsize=17, zorder=5)
 
     ax.legend(
-        handles=legend_handles,
-        loc="upper center", bbox_to_anchor=(0.5, -0.32),
-        ncol=2, frameon=False, fontsize=18,
+        loc="upper center", bbox_to_anchor=(0.5, -0.09),
+        ncol=2, frameon=False, fontsize=16,
     )
 
-    fig.subplots_adjust(top=0.95, bottom=0.36, left=0.06, right=0.97)
-    fig.savefig(out_path, format="jpg", dpi=200)
+    fig.subplots_adjust(top=0.76, bottom=0.16, left=0.16, right=0.97)
+    fig.savefig(out_path, format="jpg", dpi=200, bbox_inches="tight", pad_inches=0.25)
     plt.close(fig)
+
+
+def plot_poll(df_poll: pd.DataFrame, outlet: str, date_raw, out_path: Path) -> None:
+    # Ordered by expected number of women descending (most women at the
+    # top), ties keep the workbook's original row order.
+    df_sorted = df_poll.sort_values(COL_WOMEN, ascending=False, kind="stable")
+
+    parties = df_sorted[COL_PARTY].tolist()
+    women = df_sorted[COL_WOMEN].tolist()
+    men = df_sorted[COL_MEN].tolist()
+
+    date_str = format_poll_date(date_raw)
+    detail_lines = build_detail_lines(outlet, date_str)
+
+    render_bar_chart(parties, women, men, detail_lines, out_path)
+
+
+def plot_mean_poll(df_mean: pd.DataFrame, out_path: Path) -> None:
+    """Chart for the aggregate 'mean poll' (average-of-polls) estimate in
+    the חישוב 2026 sheet -- same visual style as a per-outlet poll chart,
+    but with no outlet/date in the title and the trailing totals row
+    (סה"כ) excluded before sorting/plotting."""
+    df = df_mean[df_mean[COL_PARTY] != TOTAL_ROW_LABEL]
+    df_sorted = df.sort_values(COL_WOMEN, ascending=False, kind="stable")
+
+    parties = df_sorted[COL_PARTY].tolist()
+    women = df_sorted[COL_WOMEN].tolist()
+    men = df_sorted[COL_MEN].tolist()
+
+    detail_lines = build_mean_detail_lines()
+
+    render_bar_chart(parties, women, men, detail_lines, out_path)
 
 
 def bloc_colors(group_order: list) -> dict:
@@ -355,12 +374,24 @@ def bloc_colors(group_order: list) -> dict:
     return colors
 
 
-def plot_pie_poll(df_poll: pd.DataFrame, outlet: str, date_raw, mapping: dict,
-                   out_path: Path) -> None:
-    """Pseudo-3D pie chart of expected women split across party blocs (per
-    mapping.csv). Blocs with 0 expected women still get a callout showing 0
-    rather than silently disappearing."""
-    df = df_poll.copy()
+def build_mean_pie_title(total_women: int) -> str:
+    """Title for the mean-poll bloc chart -- same three-line format as
+    build_pie_title, but with no outlet/date (matches build_mean_detail_lines'
+    'ממוצע הסקרים' framing)."""
+    return "\n".join([
+        rtl('מספר ח"כים וח"כיות צפויה'),
+        rtl("לפי ממוצע הסקרים"),
+        rtl(f"רק {total_women} נשים בכנסת הבאה"),
+    ])
+
+
+def render_bloc_chart(df: pd.DataFrame, mapping: dict, count_line: str,
+                       detail_line: str, out_path: Path, skip_label: str) -> bool:
+    """Shared half-donut ("half bagel") bloc-chart renderer, used for both
+    per-outlet polls and the mean-poll aggregate. Blocs with 0 expected
+    women still get a callout showing 0 rather than silently disappearing.
+    Returns False (writing nothing) if there are 0 expected women overall."""
+    df = df.copy()
     df["__group"] = df[COL_PARTY].map(mapping)
 
     unmapped = sorted(df.loc[df["__group"].isna(), COL_PARTY].unique())
@@ -378,72 +409,174 @@ def plot_pie_poll(df_poll: pd.DataFrame, outlet: str, date_raw, mapping: dict,
     by_group = by_group.reindex(group_order, fill_value=0)
 
     total_women = int(by_group.sum())
-    date_str = format_poll_date(date_raw)
 
     if total_women == 0:
-        print(f"  skipping pie chart for {outlet} ({date_str}): 0 expected women")
-        return
+        print(f"  skipping pie chart for {skip_label}: 0 expected women")
+        return False
 
     values = [int(v) for v in by_group.values]
     colors = [group_color.get(g, "#8C8C8C") for g in group_order]
 
-    fig, ax = plt.subplots(figsize=(9, 9))
+    fig, ax = plt.subplots(figsize=(9, 6.5))
 
-    radius = 1.0
-    boundaries = draw_3d_pie(ax, values, colors, start_angle=90, radius=radius)
+    outer_r, inner_r = DONUT_OUTER_R, DONUT_INNER_R
+    boundaries = draw_half_donut(ax, values, colors, start_angle=180, end_angle=0,
+                                  outer_r=outer_r, inner_r=inner_r)
 
-    # Inside count/% labels + outside bloc-name labels, for non-empty wedges.
+    # Non-empty blocs get their value + name/% printed directly on their own
+    # ring segment (stacked along the segment's own radial direction, so it
+    # reads correctly at any angle), colored for contrast against that
+    # segment's fill.
+    r_mid = (inner_r + outer_r) / 2
+    r_offset = (outer_r - inner_r) * 0.24
+
     for i, (g, v) in enumerate(zip(group_order, values)):
         if v <= 0:
             continue
         mid = (boundaries[i] + boundaries[i + 1]) / 2
         pct = v / total_women * 100
+        on_segment_color = "white" if g == OPPOSITION_GROUP_NAME else "#262626"
 
-        lx, ly = _pie_point(mid, radius * 0.62)
-        label_color = "white" if g == OPPOSITION_GROUP_NAME else "black"
-        ax.text(lx, ly, f"{v}\n({pct:.0f}%)", ha="center", va="center",
-                fontsize=17, fontweight="bold", color=label_color, zorder=4)
+        vx, vy = _donut_point(mid, r_mid + r_offset)
+        ax.text(vx, vy, str(v), ha="center", va="center",
+                fontsize=24, fontweight="bold", color=on_segment_color, zorder=4)
 
-        # Push labels further out when they fall on the front (bottom) half
-        # of the pie, so they clear the extruded 3D side wall down there
-        # instead of overlapping it.
-        label_dist = radius * (1.5 if math.sin(math.radians(mid)) < 0 else 1.2)
-        ox, oy = _pie_point(mid, label_dist)
-        ha = "left" if math.cos(math.radians(mid)) >= 0 else "right"
-        ax.text(ox, oy, rtl(g), ha=ha, va="center",
-                fontsize=17, fontweight="bold", zorder=4)
+        nx, ny = _donut_point(mid, r_mid - r_offset)
+        ax.text(nx, ny, f"{rtl(g)}\n({pct:.0f}%)", ha="center", va="center",
+                fontsize=13, fontweight="bold", color=on_segment_color, zorder=4)
 
-    # Callout for any bloc with 0 expected women (e.g. "חדש תע"ל"): it has
-    # no wedge to label directly, so point a leader line at its reserved
-    # (degenerate) boundary angle instead of letting it vanish silently.
-    for i, (g, v) in enumerate(zip(group_order, values)):
-        if v > 0:
-            continue
-        anchor_theta = boundaries[i]
-        ax_x, ax_y = _pie_point(anchor_theta, radius)
-        tx, ty = _pie_point(anchor_theta, radius * 1.55)
-        ax.annotate(
-            f"{rtl(g)}\n0 (0%)",
-            xy=(ax_x, ax_y), xytext=(tx, ty),
-            ha="center", va="center", fontsize=15, fontweight="bold",
-            arrowprops=dict(arrowstyle="-", color="#999999", lw=1.3),
-            zorder=5,
-        )
+    # Blocs with 0 expected women (e.g. "חדש תע"ל") have no colored segment
+    # to print on, so they still get a muted callout in the hole below the
+    # ring rather than silently disappearing. Spread multiple empty blocs
+    # into an evenly-spaced row so they never overlap each other.
+    empty_groups = [g for g, v in zip(group_order, values) if v <= 0]
+    if empty_groups:
+        y_value, y_name = inner_r * 0.55, inner_r * 0.22
+        slot_max = min(0.35, inner_r * 0.6)
+        if len(empty_groups) > 1:
+            slot_x = [-slot_max + i * (2 * slot_max) / (len(empty_groups) - 1)
+                      for i in range(len(empty_groups))]
+        else:
+            slot_x = [0.0]
+        for x, g in zip(slot_x, empty_groups):
+            ax.text(x, y_value, "0", ha="center", va="center",
+                    fontsize=24, fontweight="bold", color="#9a9a9a", zorder=4)
+            ax.text(x, y_name, f"{rtl(g)}\n(0%)", ha="center", va="center",
+                    fontsize=13, fontweight="bold", color="#9a9a9a", zorder=4)
 
-    pad = radius * 0.75
-    ax.set_xlim(-radius - pad, radius + pad)
-    ax.set_ylim(-radius * PIE_SQUASH - PIE_DEPTH - pad * 0.6, radius * PIE_SQUASH + pad * 0.6)
+    pad = outer_r * 0.35
+    ax.set_xlim(-outer_r - pad, outer_r + pad)
+    ax.set_ylim(-outer_r * 0.15, outer_r + pad)
     ax.set_aspect("equal", adjustable="box")
     ax.axis("off")
 
-    title = build_title(outlet, date_str, total_women)
-    ax.set_title(title, fontsize=22, linespacing=1.5, pad=20)
+    # Prominent "N women" line on top (mirrors the bar chart's leading-party
+    # headline), with the smaller, right-aligned subtitle beneath it.
+    ax.text(0.98, 1.14, count_line, transform=ax.transAxes, ha="right", va="bottom",
+            fontsize=22, fontweight="bold", zorder=5)
+    ax.text(0.98, 1.04, detail_line, transform=ax.transAxes, ha="right", va="bottom",
+            fontsize=16, zorder=5)
 
-    # The pie's data aspect (wide, short ellipse) is much wider than the
-    # square figure, which would otherwise letterbox a lot of blank space
-    # above/below it; crop to the actual content instead.
     fig.savefig(out_path, format="jpg", dpi=200, bbox_inches="tight", pad_inches=0.35)
     plt.close(fig)
+    return True
+
+
+def plot_pie_poll(df_poll: pd.DataFrame, outlet: str, date_raw, mapping: dict,
+                   out_path: Path) -> bool:
+    """Half-donut bloc chart for a single outlet's poll. Returns False
+    (writing nothing) if there are 0 expected women overall."""
+    date_str = format_poll_date(date_raw)
+    total_women = int(df_poll[COL_WOMEN].sum())
+    count_line = build_women_count_line(total_women)
+    detail_line = build_detail_lines(outlet, date_str)
+    return render_bloc_chart(df_poll, mapping, count_line, detail_line, out_path,
+                              skip_label=f"{outlet} ({date_str})")
+
+
+def plot_mean_pie_poll(df_mean: pd.DataFrame, mapping: dict, out_path: Path) -> bool:
+    """Half-donut bloc chart for the aggregate 'mean poll' (average-of-polls)
+    estimate in the חישוב 2026 sheet, with the trailing totals row (סה"כ)
+    excluded first. Returns False (writing nothing) if there are 0 expected
+    women overall."""
+    df = df_mean[df_mean[COL_PARTY] != TOTAL_ROW_LABEL]
+    total_women = int(df[COL_WOMEN].sum())
+    count_line = build_women_count_line(total_women)
+    detail_line = build_mean_detail_lines()
+    return render_bloc_chart(df, mapping, count_line, detail_line, out_path,
+                              skip_label="ממוצע הסקרים")
+
+
+def compute_poll_email_stats(df_poll: pd.DataFrame, mapping: dict) -> dict:
+    """Leading party (by expected women) + opposition/coalition/total women
+    totals for a single poll, used to fill in the email template. Note:
+    unlike rtl(), these party/bloc names are left in normal (logical) Hebrew
+    order -- email clients do their own bidi rendering, so reordering here
+    would show up backwards."""
+    women_by_party = df_poll.set_index(COL_PARTY)[COL_WOMEN]
+    leading_party = women_by_party.idxmax()
+    leading_women = int(women_by_party.max())
+
+    groups = df_poll[COL_PARTY].map(mapping)
+    opposition_women = int(df_poll.loc[groups == OPPOSITION_GROUP_NAME, COL_WOMEN].sum())
+    coalition_women = int(df_poll.loc[groups == COALITION_GROUP_NAME, COL_WOMEN].sum())
+    total_women = int(df_poll[COL_WOMEN].sum())
+
+    return {
+        "leading_party": leading_party,
+        "leading_women": leading_women,
+        "opposition_women": opposition_women,
+        "coalition_women": coalition_women,
+        "total_women": total_women,
+    }
+
+
+def build_email_subject(outlet: str, date_str: str) -> str:
+    return (f'מספר ח"כיות וחכ"ים צפויה בכל מפלגה ובכל גוש, '
+            f'לפי סקר {outlet} מתאריך {date_str}')
+
+
+def build_email_body(date_str: str, stats: dict) -> str:
+    return (
+        "שלום רב,\n"
+        f"על פי הסקר שלכם מתאריך {date_str} מסתמן שבמפלגה המובילה מבחינת "
+        f"מספר נשים, היא מפלגת {stats['leading_party']} עם "
+        f"{stats['leading_women']} נשים.\n"
+        f"בחלוקה עפ\"י גושים, בגוש האופוזיציה יש {stats['opposition_women']} "
+        f"נשים, ובגוש הקואליציה יש {stats['coalition_women']} נשים.\n"
+        f"סה\"כ צפויות להיות בכנסת הבאה {stats['total_women']} נשים.\n"
+        "אתם מוזמנים להשתמש בגרפים המצורפים.\n"
+        "\n"
+        "בברכה,\n"
+        "צוות 5050"
+    )
+
+
+def build_email_message(subject: str, body: str, attachments: list) -> EmailMessage:
+    msg = EmailMessage()
+    msg["From"] = EMAIL_SENDER
+    msg["To"] = formataddr((EMAIL_TO_NAME, EMAIL_TO_ADDR))
+    msg["Subject"] = subject
+    msg.set_content(body)
+    for path in attachments:
+        data = Path(path).read_bytes()
+        msg.add_attachment(data, maintype="image", subtype="jpeg",
+                            filename=Path(path).name)
+    return msg
+
+
+def save_gmail_draft(msg: EmailMessage, app_password: str) -> None:
+    """Append `msg` to the Gmail Drafts folder via IMAP (never sends it)."""
+    with imaplib.IMAP4_SSL(IMAP_HOST) as imap:
+        status, _ = imap.login(EMAIL_SENDER, app_password)
+        if status != "OK":
+            raise RuntimeError(f"IMAP login failed for {EMAIL_SENDER}")
+        status, _ = imap.append(
+            IMAP_DRAFTS_FOLDER, "\\Draft",
+            imaplib.Time2Internaldate(time.time()), msg.as_bytes(),
+        )
+        if status != "OK":
+            raise RuntimeError(f"Failed to save draft to {IMAP_DRAFTS_FOLDER}")
 
 
 def main():
@@ -459,6 +592,20 @@ def main():
     parser.add_argument("--mapping-csv", default=None,
                          help="Path to the party -> bloc mapping CSV "
                               "(defaults to mapping.csv inside --input-dir)")
+    parser.add_argument("--create-email-drafts", action="store_true",
+                         help=f"Also create a Gmail DRAFT (not sent) per "
+                              f"outlet in {EMAIL_SENDER}'s Drafts folder, "
+                              f"summarizing that poll and attaching its "
+                              f"charts. Needs mapping.csv (loaded "
+                              f"automatically even without --with-pie-charts) "
+                              f"and a Gmail App Password.")
+    parser.add_argument("--gmail-app-password", default=None,
+                         help="Gmail App Password for %s (needs IMAP enabled "
+                              "+ a 16-char App Password from Google Account "
+                              "-> Security -> App Passwords). Defaults to the "
+                              "GMAIL_APP_PASSWORD environment variable, which "
+                              "is safer than passing it on the command line."
+                              % EMAIL_SENDER)
     args = parser.parse_args()
 
     input_dir = Path(args.input_dir)
@@ -470,12 +617,61 @@ def main():
 
     df = pd.read_excel(workbook_path, sheet_name=SHEET_NAME)
 
+    # Skip incomplete rows (missing outlet or date). This is usually not
+    # actually missing data -- it typically happens when a poll's row uses
+    # formulas (=INDEX/MATCH...) that pull from another sheet, and the
+    # workbook was last saved by a tool that writes cells directly (e.g. via
+    # openpyxl) without Excel/LibreOffice recalculating first. Python can
+    # only read the last-cached formula result, not evaluate the formula
+    # itself, so it sees blanks even though Excel would show real values.
+    # Without this filter, a missing date also silently matches nothing when
+    # filtered by equality (NaN != NaN), which produced bogus "nan-nan"
+    # charts and crashed the e-mail stats step.
+    incomplete_mask = df[COL_OUTLET].isna() | df[COL_DATE].isna()
+    if incomplete_mask.any():
+        # Name the affected outlet(s) so this is obvious at a glance, not a
+        # silent skip. A row missing even its outlet name is reported as
+        # "(row N)" using its 1-based position in the sheet (+2 for the
+        # header row and 0-based index).
+        affected = (
+            df.loc[incomplete_mask, COL_OUTLET]
+            .fillna("")
+            .replace("", pd.NA)
+        )
+        labels = []
+        for idx, outlet_name in affected.items():
+            if pd.isna(outlet_name):
+                labels.append(f"(row {idx + 2})")
+            else:
+                labels.append(str(outlet_name))
+        counts = pd.Series(labels).value_counts()
+        summary = ", ".join(f"{name} ({n} row{'s' if n != 1 else ''})"
+                             for name, n in counts.items())
+        print(f"  warning: skipping {int(incomplete_mask.sum())} row(s) with "
+              f"a missing outlet/date, excluded from all charts/emails: {summary}")
+        print(f"    (if the data looks complete when you open the workbook, "
+              f"this is likely stale formula cells -- open the file in "
+              f"Excel/LibreOffice, let it recalculate, and save before "
+              f"rerunning)")
+        df = df[~incomplete_mask]
+
+    app_password = None
+    if args.create_email_drafts:
+        app_password = args.gmail_app_password or os.environ.get("GMAIL_APP_PASSWORD")
+        if not app_password:
+            raise SystemExit(
+                "--create-email-drafts needs a Gmail App Password: pass "
+                "--gmail-app-password or set the GMAIL_APP_PASSWORD "
+                "environment variable."
+            )
+
     mapping = None
-    if args.with_pie_charts:
+    if args.with_pie_charts or args.create_email_drafts:
         mapping_csv = Path(args.mapping_csv) if args.mapping_csv else input_dir / "mapping.csv"
         if not mapping_csv.exists():
             raise FileNotFoundError(
-                f"--with-pie-charts was given but {mapping_csv} was not found."
+                f"--with-pie-charts/--create-email-drafts needs {mapping_csv}, "
+                f"which was not found."
             )
         mapping = load_mapping(mapping_csv)
         print(f"Using bloc mapping: {mapping_csv.name} "
@@ -493,11 +689,38 @@ def main():
         plot_poll(df_poll, outlet, date_raw, out_path)
         print(f"  wrote {out_path.name}")
 
+        pie_out_path = None
         if mapping is not None:
             pie_fname = f"women_by_bloc_{sanitize_filename(outlet)}_{date_str.replace('.', '-')}.jpg"
             pie_out_path = output_dir / pie_fname
             plot_pie_poll(df_poll, outlet, date_raw, mapping, pie_out_path)
-            print(f"  wrote {pie_out_path.name}")
+            if pie_out_path.exists():
+                print(f"  wrote {pie_out_path.name}")
+            else:
+                pie_out_path = None  # plot_pie_poll skips 0-women polls
+
+        if args.create_email_drafts:
+            if df_poll.empty or df_poll[COL_WOMEN].sum() == 0:
+                print(f"  skipping email draft for {outlet} ({date_str}): no data")
+                continue
+            stats = compute_poll_email_stats(df_poll, mapping)
+            subject = build_email_subject(outlet, date_str)
+            body = build_email_body(date_str, stats)
+            attachments = [out_path] + ([pie_out_path] if pie_out_path else [])
+            msg = build_email_message(subject, body, attachments)
+            save_gmail_draft(msg, app_password)
+            print(f"  created email draft: {subject}")
+
+    # Also plot the aggregate "mean poll" (average-of-polls) estimate.
+    df_mean = pd.read_excel(workbook_path, sheet_name=MEAN_SHEET_NAME)
+    mean_out_path = output_dir / "women_seats_ממוצע_סקרים.jpg"
+    plot_mean_poll(df_mean, mean_out_path)
+    print(f"  wrote {mean_out_path.name}")
+
+    if mapping is not None:
+        mean_pie_out_path = output_dir / "women_by_bloc_ממוצע_סקרים.jpg"
+        if plot_mean_pie_poll(df_mean, mapping, mean_pie_out_path):
+            print(f"  wrote {mean_pie_out_path.name}")
 
     print("Done.")
 
