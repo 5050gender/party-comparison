@@ -106,6 +106,7 @@ except ImportError as exc:  # pragma: no cover
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 FONTS_DIR = Path(__file__).resolve().parent / "fonts"
 LOGO_PATH = TEMPLATES_DIR / "assets" / "logo_5050.jpg"
+EMAIL_TEMPLATE_PATH = TEMPLATES_DIR / "assets" / "text_for_email.txt"
 
 
 SHEET_NAME = "חישוב לפי ערוץ"
@@ -222,9 +223,13 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
     """Compute every geometric value the arc_chart.html.j2 template needs:
     segment paths/colors/labels, separator lines, the two bloc totals at the
     base, the gray/unmapped segment's label, and the top arrows + total-women
-    callout. All angles are derived from the seat counts (out of
-    ARC_TOTAL_SEATS=120) -- pass real per-bloc, per-gender seat totals and
-    this reproduces the approved design for any dataset."""
+    callout. All angles are derived from the seat counts as a share of the
+    total seats actually accounted for across the 5 segments -- not a fixed
+    120, since some polls' seat counts sum to less than 120 (parties below
+    the electoral threshold that this workbook doesn't reallocate), which
+    would otherwise leave the arc visibly short of a full half-circle. Pass
+    real per-bloc, per-gender seat totals and this reproduces the approved
+    design for any dataset."""
     segs = [
         {"n": gray_seats, "fill": ARC_COLOR_GRAY, "bloc": "gray"},
         {"n": opp_men, "fill": ARC_COLOR_OPP_MEN, "bloc": "opposition"},
@@ -235,10 +240,12 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
         {"n": coal_men, "fill": ARC_COLOR_COAL_MEN, "bloc": "coalition"},
     ]
 
+    total_seats = sum(s["n"] for s in segs) or ARC_TOTAL_SEATS  # guard div-by-0
+
     cum = 0.0
     for s in segs:
         s["a1"] = cum
-        s["a2"] = cum + (s["n"] / ARC_TOTAL_SEATS) * 180
+        s["a2"] = cum + (s["n"] / total_seats) * 180
         cum = s["a2"]
 
     mid_r = (ARC_RO + ARC_RI) / 2
@@ -704,11 +711,15 @@ def plot_mean_pie_poll(df_mean: pd.DataFrame, mapping: dict, out_path: Path) -> 
 
 
 def compute_poll_email_stats(df_poll: pd.DataFrame, mapping: dict) -> dict:
-    """Leading party (by expected women) + opposition/coalition/total women
-    totals for a single poll, used to fill in the email template. Note:
-    unlike rtl(), these party/bloc names are left in normal (logical) Hebrew
-    order -- email clients do their own bidi rendering, so reordering here
-    would show up backwards."""
+    """Leading party (by expected women) + per-bloc/total women totals for a
+    single poll, used to fill in the email template. Note: unlike rtl(),
+    these party/bloc names are left in normal (logical) Hebrew order --
+    email clients do their own bidi rendering, so reordering here would
+    show up backwards.
+
+    "change_bloc_women" folds in unmapped/"gray" parties' women (parties
+    not mapped to exactly OPPOSITION_GROUP_NAME or COALITION_GROUP_NAME),
+    matching the arc chart's "גוש השינוי" total (see render_bloc_chart)."""
     women_by_party = df_poll.set_index(COL_PARTY)[COL_WOMEN]
     leading_party = women_by_party.idxmax()
     leading_women = int(women_by_party.max())
@@ -716,6 +727,9 @@ def compute_poll_email_stats(df_poll: pd.DataFrame, mapping: dict) -> dict:
     groups = df_poll[COL_PARTY].map(mapping)
     opposition_women = int(df_poll.loc[groups == OPPOSITION_GROUP_NAME, COL_WOMEN].sum())
     coalition_women = int(df_poll.loc[groups == COALITION_GROUP_NAME, COL_WOMEN].sum())
+    gray_women = int(df_poll.loc[
+        ~groups.isin([OPPOSITION_GROUP_NAME, COALITION_GROUP_NAME]), COL_WOMEN
+    ].sum())
     total_women = int(df_poll[COL_WOMEN].sum())
 
     return {
@@ -723,29 +737,93 @@ def compute_poll_email_stats(df_poll: pd.DataFrame, mapping: dict) -> dict:
         "leading_women": leading_women,
         "opposition_women": opposition_women,
         "coalition_women": coalition_women,
+        "gray_women": gray_women,
+        "change_bloc_women": opposition_women + gray_women,
+        "coalition_bloc_women": coalition_women,
         "total_women": total_women,
     }
 
 
+def _read_text_asset(path: Path) -> str:
+    """Read a user-edited text asset, tolerating whichever encoding it was
+    saved with -- Windows Notepad defaults to UTF-16 (with a BOM), but a
+    plain UTF-8 or UTF-8-with-BOM save should also just work."""
+    raw = path.read_bytes()
+    for encoding in ("utf-16", "utf-8-sig", "utf-8"):
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise SystemExit(f"Could not decode {path} as UTF-16 or UTF-8.")
+
+
+EMAIL_SUBJECT_PREFIX = "נושא:"
+
+
+def _load_email_template() -> tuple:
+    """Split templates/assets/text_for_email.txt into (subject_template,
+    body_template): the first line is the subject (prefixed with
+    "נושא: "), and everything after the following blank line is the body.
+    Placeholders like [שם הערוץ/עיתון] and [מספר] are filled in by
+    build_email_subject/build_email_body -- edit the wording in the .txt
+    file freely, just keep the bracketed placeholder names intact."""
+    if not EMAIL_TEMPLATE_PATH.exists():
+        raise SystemExit(
+            f"--create-email-drafts needs {EMAIL_TEMPLATE_PATH}, "
+            f"which was not found."
+        )
+    text = _read_text_asset(EMAIL_TEMPLATE_PATH).replace("\r\n", "\n").replace("\r", "\n")
+    subject_line, _, rest = text.partition("\n\n")
+    subject_template = subject_line.strip()
+    if subject_template.startswith(EMAIL_SUBJECT_PREFIX):
+        subject_template = subject_template[len(EMAIL_SUBJECT_PREFIX):].strip()
+    body_template = rest.strip("\n")
+    return subject_template, body_template
+
+
+def _fill_sequential(text: str, placeholder: str, values: list) -> str:
+    """Replace successive occurrences of `placeholder` with each value from
+    `values`, in order -- used for the email template's repeated [מספר]
+    placeholder, which stands for a different number each time it appears.
+    A mismatched count (template edited to add/remove a placeholder) is
+    reported rather than silently filling in the wrong number; unmatched
+    placeholders beyond len(values) are left as literal text."""
+    count = text.count(placeholder)
+    if count != len(values):
+        print(f'  warning: email template has {count} "{placeholder}" '
+              f'placeholder(s) but {len(values)} value(s) were expected; '
+              f'filling in order, any extra placeholders are left as-is')
+    values_iter = iter(values)
+
+    def _replace(_match):
+        try:
+            return str(next(values_iter))
+        except StopIteration:
+            return _match.group(0)
+
+    return re.sub(re.escape(placeholder), _replace, text)
+
+
 def build_email_subject(outlet: str, date_str: str) -> str:
-    return (f'מספר ח"כיות וחכ"ים צפויה בכל מפלגה ובכל גוש, '
-            f'לפי סקר {outlet} מתאריך {date_str}')
+    subject_template, _ = _load_email_template()
+    subject = subject_template.replace("[שם הערוץ/עיתון]", outlet)
+    subject = subject.replace("[תאריך]", date_str)
+    return subject
 
 
-def build_email_body(date_str: str, stats: dict) -> str:
-    return (
-        "שלום רב,\n"
-        f"על פי הסקר שלכם מתאריך {date_str} מסתמן שבמפלגה המובילה מבחינת "
-        f"מספר נשים, היא מפלגת {stats['leading_party']} עם "
-        f"{stats['leading_women']} נשים.\n"
-        f"בחלוקה עפ\"י גושים, בגוש האופוזיציה יש {stats['opposition_women']} "
-        f"נשים, ובגוש הקואליציה יש {stats['coalition_women']} נשים.\n"
-        f"סה\"כ צפויות להיות בכנסת הבאה {stats['total_women']} נשים.\n"
-        "אתם מוזמנים להשתמש בגרפים המצורפים.\n"
-        "\n"
-        "בברכה,\n"
-        "צוות 5050"
-    )
+def build_email_body(outlet: str, date_str: str, stats: dict) -> str:
+    _, body_template = _load_email_template()
+    body = body_template.replace("[ערוץ תקשורת]", outlet)
+    body = body.replace("[שם הערוץ]", outlet)
+    body = body.replace("[תאריך]", date_str)
+    body = body.replace("[שם המפלגה]", stats["leading_party"])
+    body = _fill_sequential(body, "[מספר]", [
+        stats["leading_women"],
+        stats["change_bloc_women"],
+        stats["coalition_bloc_women"],
+        stats["total_women"],
+    ])
+    return body
 
 
 def build_email_message(subject: str, body: str, attachments: list) -> EmailMessage:
@@ -901,7 +979,7 @@ def main():
                 continue
             stats = compute_poll_email_stats(df_poll, mapping)
             subject = build_email_subject(outlet, date_str)
-            body = build_email_body(date_str, stats)
+            body = build_email_body(outlet, date_str, stats)
             attachments = [out_path] + ([pie_out_path] if pie_out_path else [])
             msg = build_email_message(subject, body, attachments)
             save_gmail_draft(msg, app_password)

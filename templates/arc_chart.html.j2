@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face {
+    font-family: 'Heebo';
+    src: url('{{ heebo_regular_data_uri }}') format('truetype');
+    font-weight: 400;
+  }
+  @font-face {
+    font-family: 'Heebo';
+    src: url('{{ heebo_bold_data_uri }}') format('truetype');
+    font-weight: 700;
+  }
+  body {
+    margin: 0;
+    background: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Heebo', sans-serif;
+  }
+</style>
+</head>
+<body>
+<svg id="chart" xmlns="http://www.w3.org/2000/svg" viewBox="{{ view_box }}" width="{{ svg_width }}" height="{{ svg_height }}">
+  <defs>
+    <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#000000"/>
+    </marker>
+  </defs>
+
+  {# 0. Title, above the arc #}
+  {% if title_text %}
+  <text x="{{ title_pos[0] }}" y="{{ title_pos[1] }}" font-size="22" fill="#000000"
+        font-weight="bold" text-anchor="middle" direction="rtl" font-family="'Heebo', sans-serif">{{ title_text }}</text>
+  {% endif %}
+
+  {# 1. Arc segments #}
+  {% for seg in segments %}
+  <path d="{{ seg.d }}" fill="{{ seg.fill }}"/>
+  {% endfor %}
+
+  {# 2. Separators between segments #}
+  {% for sep in separators %}
+  <line x1="{{ sep.x1 }}" y1="{{ sep.y1 }}" x2="{{ sep.x2 }}" y2="{{ sep.y2 }}"
+        stroke="white"
+        {% if sep.dashed %}stroke-width="1.5" stroke-dasharray="5,4"{% else %}stroke-width="3"{% endif %}/>
+  {% endfor %}
+
+  {# 3. Numbers + "נשים" labels inside the women segments #}
+  {% for seg in segments %}
+  {% if seg.num %}
+  <text x="{{ seg.num_pos[0] }}" y="{{ seg.num_pos[1] }}" font-size="30" fill="white"
+        font-weight="bold" text-anchor="middle" font-family="'Heebo', sans-serif"
+        stroke="{{ seg.contour }}" stroke-width="5" stroke-linejoin="round" paint-order="stroke fill">{{ seg.num }}</text>
+  <text x="{{ seg.sub_pos[0] }}" y="{{ seg.sub_pos[1] }}" font-size="24" fill="white"
+        font-weight="bold" text-anchor="middle" font-family="'Heebo', sans-serif"
+        stroke="{{ seg.contour }}" stroke-width="4" stroke-linejoin="round" paint-order="stroke fill">{{ seg.sub }}</text>
+  {% endif %}
+  {% endfor %}
+
+  {# 4. Bloc totals at the base #}
+  {% for rect in bloc_rects %}
+  <rect x="{{ rect.cx - 52 }}" y="{{ cy }}" width="104" height="76" fill="#fff"/>
+  <text x="{{ rect.cx }}" y="{{ cy + 28 }}" font-size="24" fill="#000" font-weight="bold"
+        text-anchor="middle" font-family="'Heebo', sans-serif">{{ rect.label }}</text>
+  <text x="{{ rect.cx }}" y="{{ cy + 60 }}" font-size="30" fill="#000" font-weight="bold"
+        text-anchor="middle" font-family="'Heebo', sans-serif">{{ rect.total }}</text>
+  {% endfor %}
+
+  {# 5. Gray/unmapped segment label #}
+  {% if gray_label_lines %}
+  {% for line in gray_label_lines %}
+  <text x="{{ gray_label_pos[0] }}" y="{{ line.y }}" font-size="11" fill="#fff" font-weight="bold"
+        text-anchor="middle" font-family="'Heebo', sans-serif">{{ line.text }}</text>
+  {% endfor %}
+  {% endif %}
+
+  {# 6. Symmetric arrows pointing to the total-women callout #}
+  {% for arrow in arrows %}
+  <line x1="{{ arrow.x1 }}" y1="{{ arrow.y1 }}" x2="{{ arrow.x2 }}" y2="{{ arrow.y2 }}"
+        stroke="#000000" stroke-width="2" marker-end="url(#arrowhead)"/>
+  {% endfor %}
+  <text x="{{ total_label_pos[0] }}" y="{{ total_label_pos[1] }}" font-size="17" fill="#000000"
+        font-weight="bold" text-anchor="middle" direction="rtl" font-family="'Heebo', sans-serif">{{ total_label_text }}</text>
+
+  {# 7. Logo, centered below the arc #}
+  {% if logo_data_uri %}
+  <image href="{{ logo_data_uri }}" x="{{ logo_pos[0] }}" y="{{ logo_pos[1] }}"
+         width="{{ logo_size }}" height="{{ logo_size }}"/>
+  {% endif %}
+</svg>
+</body>
+</html>
