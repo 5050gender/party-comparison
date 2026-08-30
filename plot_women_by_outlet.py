@@ -4,20 +4,28 @@
 plot_women_by_outlet.py
 
 For each poll (outlet + date) in the "חישוב לפי ערוץ" sheet of the most recent
-party-comparison-updated-vXX.xlsx workbook, draws a stacked bar chart of the
-expected number of women (bottom, purple) vs. men (top, gray) MKs per party,
-and saves it as a separate .jpg file.
+party-comparison-updated-vXX.xlsx workbook, draws a bar chart of the expected
+number of women (purple) vs. men (gray) MKs per party, and saves it as a
+separate .jpg file.
 
-Optionally (with --with-pie-charts), also draws a pie chart per poll showing
-the expected number of women split across party "blocs" (groups), using the
-party -> bloc mapping in mapping.csv (columns: מפלגה, גוש).
+Optionally (with --with-pie-charts), also draws a half-donut "arc" chart per
+poll showing the expected number of women/men split across the opposition
+and coalition blocs, using the party -> bloc mapping in mapping.csv (columns:
+מפלגה, גוש).
 
 Optionally (with --create-email-drafts), also creates a Gmail DRAFT (never
 sent automatically) per outlet, summarizing that poll and attaching its
 charts.
 
+Charts are drawn as HTML/CSS/SVG (see the "templates" folder next to this
+script) and rendered to JPG with a headless browser (Playwright), not with
+matplotlib -- this keeps the exact chart design in editable HTML/CSS/SVG
+files, so a visual tweak (colors, spacing, fonts) only ever needs a template
+edit, never a change to this script.
+
 Requirements:
-    pip install pandas matplotlib openpyxl python-bidi
+    pip install pandas openpyxl jinja2 playwright pillow
+    playwright install chromium
 
 Usage:
     python plot_women_by_outlet.py [--input-dir DIR] [--output-dir DIR]
@@ -49,7 +57,9 @@ Usage:
 """
 
 import argparse
+import base64
 import imaplib
+import io
 import math
 import os
 import re
@@ -58,6 +68,8 @@ import time
 from email.message import EmailMessage
 from email.utils import formataddr
 from pathlib import Path
+
+from PIL import Image
 
 # On Windows, the console's default codepage (e.g. cp1252) can't encode
 # Hebrew, which crashes plain print() calls. Force UTF-8 output (with
@@ -68,20 +80,32 @@ for _stream in (sys.stdout, sys.stderr):
     except AttributeError:
         pass  # older Python without reconfigure(); printing may still fail
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.colors as mcolors
-import matplotlib.pyplot as plt
-from matplotlib.patches import Wedge
 import pandas as pd
 
 try:
-    from bidi.algorithm import get_display
+    from jinja2 import Environment, FileSystemLoader
 except ImportError as exc:  # pragma: no cover
     raise SystemExit(
-        "Missing dependency 'python-bidi'. Install it with:\n"
-        "    pip install python-bidi"
+        "Missing dependency 'jinja2'. Install it with:\n"
+        "    pip install jinja2"
     ) from exc
+
+try:
+    from playwright.sync_api import sync_playwright
+except ImportError as exc:  # pragma: no cover
+    raise SystemExit(
+        "Missing dependency 'playwright'. Install it with:\n"
+        "    pip install playwright\n"
+        "    playwright install chromium"
+    ) from exc
+
+# Charts are HTML/CSS/SVG templates (see the "templates" folder next to this
+# script) rendered to JPG via a headless browser -- edit the .html.j2 files
+# to change fonts, colors, spacing, or layout; this script only ever
+# supplies the data.
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+FONTS_DIR = Path(__file__).resolve().parent / "fonts"
+LOGO_PATH = TEMPLATES_DIR / "assets" / "logo_5050.jpg"
 
 
 SHEET_NAME = "חישוב לפי ערוץ"
@@ -101,19 +125,11 @@ MEAN_SHEET_NAME = "חישוב 2026"
 MEAN_COL_SEATS = "מנדטים צפויים"
 TOTAL_ROW_LABEL = 'סה"כ'
 
-COLOR_WOMEN = "#7B2D8E"   # purple
-COLOR_MEN = "#BFBFBF"     # light gray
-
 MAPPING_COL_PARTY = "מפלגה"
 MAPPING_COL_GROUP = "גוש"
 
-# The pie chart reuses the bar chart's purple: the "אופוזיציה" (opposition)
-# bloc gets the same full-strength purple as the "women" bars, and every
-# other bloc gets a progressively lighter tint of that same purple (never an
-# unrelated hue), so the two charts read as one visual system.
 OPPOSITION_GROUP_NAME = "אופוזיציה"
 COALITION_GROUP_NAME = "קואליציה"
-OTHER_GROUP_TINTS = [0.55, 0.80, 0.92]  # lighten amounts for non-opposition blocs
 
 # --- Email drafts (--create-email-drafts) ---------------------------------
 # Creates a Gmail DRAFT (never sends) per outlet, summarizing that poll and
@@ -129,67 +145,360 @@ EMAIL_TO_ADDR = "info@5050il.co.il"
 IMAP_HOST = "imap.gmail.com"
 IMAP_DRAFTS_FOLDER = "[Gmail]/Drafts"
 
-# Half-donut ("half bagel") geometry: inner/outer ring radius and the
-# angular gap left between adjacent segments, in degrees.
-DONUT_OUTER_R = 1.0
-DONUT_INNER_R = 0.55
-DONUT_GAP_DEG = 1.5
-
 VERSION_RE = re.compile(r"^party-comparison-updated-v(\d+)\.xlsx$")
 
 
-def _shade(color, amount):
-    """Blend `color` toward white (amount > 0) or black (amount < 0)."""
-    r, g, b = mcolors.to_rgb(color)
-    if amount >= 0:
-        r, g, b = (r + (1 - r) * amount, g + (1 - g) * amount, b + (1 - b) * amount)
-    else:
-        r, g, b = (r * (1 + amount), g * (1 + amount), b * (1 + amount))
-    return (r, g, b)
+# --- Arc (half-donut) chart geometry ---------------------------------------
+# Ports the math from the approved knesset_arc_v3 SVG design into Python, so
+# the arc_chart.html.j2 template only ever drops in already-computed
+# numbers/paths -- there is no runtime trig in the template itself.
+ARC_CX, ARC_CY = 310, 318
+ARC_RO, ARC_RI = 252, 148  # outer / inner radius
+ARC_TOTAL_SEATS = 120
+
+ARC_COLOR_GRAY = "#8890a8"        # unmapped/other parties
+ARC_COLOR_OPP_MEN = "#0A85ED"
+ARC_COLOR_OPP_WOMEN = "#08C8F9"
+ARC_COLOR_COAL_WOMEN = "#0061BF"
+ARC_COLOR_COAL_MEN = "#003F88"
+ARC_CONTOUR_OPP_WOMEN = "#06A0C7"
+ARC_CONTOUR_COAL_WOMEN = "#002244"
+
+ARC_BLOC_CHANGE_LABEL = "גוש השינוי"        # opposition + unmapped/gray seats
+ARC_BLOC_COALITION_LABEL = "גוש ימין-חרדים"  # coalition seats
+
+# Canvas: extend the design's own viewBox with a top margin (title) and
+# bottom margin (logo), without moving any of the arc's own coordinates.
+ARC_VIEWBOX_MIN_X = -60
+ARC_VIEWBOX_MIN_Y = -55
+ARC_VIEWBOX_WIDTH = 720
+ARC_TOP_MARGIN = 55
+ARC_BOTTOM_MARGIN = 45
+ARC_VIEWBOX_HEIGHT = 385 + ARC_TOP_MARGIN + ARC_BOTTOM_MARGIN
+
+ARC_TITLE_POS = (ARC_CX, 20)
+ARC_LOGO_SIZE = 90
+# Inline with the bloc-total text (which sits at roughly CY+28..CY+60), in
+# the blank horizontal gap between the two bloc boxes.
+ARC_LOGO_POS = (ARC_CX - ARC_LOGO_SIZE / 2, ARC_CY)
 
 
-def _donut_point(theta_deg, r):
-    """A point at angle `theta_deg` (standard math convention: 0=east,
-    counterclockwise-positive) and radius `r`, centered on the origin."""
-    t = math.radians(theta_deg)
-    return r * math.cos(t), r * math.sin(t)
+def _arc_rad(d):
+    return d * math.pi / 180
 
 
-def draw_half_donut(ax, values, colors, start_angle=180, end_angle=0,
-                     outer_r=DONUT_OUTER_R, inner_r=DONUT_INNER_R,
-                     gap_deg=DONUT_GAP_DEG):
-    """Draw a flat half-donut ("half bagel"): a semicircular ring split into
-    segments proportional to `values`, opening downward (start_angle=180 on
-    the left sweeping clockwise to end_angle=0 on the right, through the top).
-    A `values` entry of 0 draws no ring segment but still reserves its
-    angular position, which callers can use to place a callout label.
-    Returns the segment boundary angles (len(values) + 1)."""
-    total = sum(values)
-    span = start_angle - end_angle
-    boundaries = [start_angle]
-    theta = start_angle
-    for v in values:
-        theta -= (v / total) * span if total else 0.0
-        boundaries.append(theta)
+def _arc_pt(r, alpha):
+    t = _arc_rad(180 + alpha)
+    return (round(ARC_CX + r * math.cos(t), 2), round(ARC_CY + r * math.sin(t), 2))
 
-    for i, v in enumerate(values):
-        if v <= 0:
+
+def _arc_clean_seg_path(a1, a2):
+    ox1, oy1 = _arc_pt(ARC_RO, a1)
+    ox2, oy2 = _arc_pt(ARC_RO, a2)
+    ix1, iy1 = _arc_pt(ARC_RI, a1)
+    ix2, iy2 = _arc_pt(ARC_RI, a2)
+    lg = 1 if (a2 - a1) > 180 else 0
+    return (f"M{ox1},{oy1} A{ARC_RO},{ARC_RO} 0 {lg} 1 {ox2},{oy2} "
+            f"L{ix2},{iy2} A{ARC_RI},{ARC_RI} 0 {lg} 0 {ix1},{iy1} Z")
+
+
+def _arc_split_label_lines(name: str) -> list:
+    """Best-effort split of a party/label name into up to 2 short lines for
+    the small white label inside the gray/unmapped arc segment (mirrors the
+    design's 'הרשימה' / 'המשותפת' two-line split)."""
+    words = name.split()
+    if len(words) <= 1:
+        return [name]
+    if len(words) == 2:
+        return words
+    mid = (len(words) + 1) // 2
+    return [" ".join(words[:mid]), " ".join(words[mid:])]
+
+
+def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
+                          coal_men: int, gray_seats: int, gray_label: str,
+                          total_women_label: str, title_text: str,
+                          logo_data_uri: str) -> dict:
+    """Compute every geometric value the arc_chart.html.j2 template needs:
+    segment paths/colors/labels, separator lines, the two bloc totals at the
+    base, the gray/unmapped segment's label, and the top arrows + total-women
+    callout. All angles are derived from the seat counts (out of
+    ARC_TOTAL_SEATS=120) -- pass real per-bloc, per-gender seat totals and
+    this reproduces the approved design for any dataset."""
+    segs = [
+        {"n": gray_seats, "fill": ARC_COLOR_GRAY, "bloc": "gray"},
+        {"n": opp_men, "fill": ARC_COLOR_OPP_MEN, "bloc": "opposition"},
+        {"n": opp_women, "fill": ARC_COLOR_OPP_WOMEN, "bloc": "opposition",
+         "num": str(opp_women), "sub": "נשים", "contour": ARC_CONTOUR_OPP_WOMEN},
+        {"n": coal_women, "fill": ARC_COLOR_COAL_WOMEN, "bloc": "coalition",
+         "num": str(coal_women), "sub": "נשים", "contour": ARC_CONTOUR_COAL_WOMEN},
+        {"n": coal_men, "fill": ARC_COLOR_COAL_MEN, "bloc": "coalition"},
+    ]
+
+    cum = 0.0
+    for s in segs:
+        s["a1"] = cum
+        s["a2"] = cum + (s["n"] / ARC_TOTAL_SEATS) * 180
+        cum = s["a2"]
+
+    mid_r = (ARC_RO + ARC_RI) / 2
+
+    segments_out = []
+    for s in segs:
+        if s["n"] <= 0:
             continue
-        lo, hi = sorted((boundaries[i], boundaries[i + 1]))
-        g = min(gap_deg, (hi - lo) * 0.15)
-        lo, hi = lo + g, hi - g
-        ax.add_patch(Wedge(
-            (0.0, 0.0), outer_r, lo, hi, width=outer_r - inner_r,
-            facecolor=colors[i], edgecolor="white", linewidth=2, zorder=3,
-        ))
+        entry = {"d": _arc_clean_seg_path(s["a1"], s["a2"]), "fill": s["fill"]}
+        if s.get("num"):
+            lx, ly = _arc_pt(mid_r, (s["a1"] + s["a2"]) / 2)
+            entry["num"] = s["num"]
+            entry["sub"] = s["sub"]
+            entry["num_pos"] = (lx, ly + 4)
+            entry["sub_pos"] = (lx, ly + 28)
+            entry["contour"] = s["contour"]
+        segments_out.append(entry)
 
-    return boundaries
+    # Separators: solid between different blocs, dashed between the
+    # men/women split within the same bloc.
+    separators = []
+    present = [s for s in segs if s["n"] > 0]
+    for i in range(len(present) - 1):
+        a, b = present[i], present[i + 1]
+        x1, y1 = _arc_pt(ARC_RO + 2, a["a2"])
+        x2, y2 = _arc_pt(ARC_RI - 2, a["a2"])
+        separators.append({
+            "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+            "dashed": a["bloc"] == b["bloc"],
+        })
+
+    # Gray/unmapped segment's label, centered in its own arc slice.
+    gray_label_lines = []
+    gray_label_pos = None
+    if gray_seats > 0:
+        gray_seg = segs[0]
+        glx, gly = _arc_pt(mid_r, (gray_seg["a1"] + gray_seg["a2"]) / 2)
+        lines = _arc_split_label_lines(gray_label)
+        if len(lines) > 1:
+            gray_label_lines = [{"text": t, "y": gly - 4 + i * 13} for i, t in enumerate(lines)]
+        else:
+            gray_label_lines = [{"text": lines[0], "y": gly + 4}]
+        gray_label_pos = (glx, gly)
+
+    # The unmapped/"gray" parties are shown as a visually distinct color in
+    # the arc, but folded into the change/opposition bloc's total below --
+    # this matches the approved design exactly (verified against real data).
+    change_total = opp_women + opp_men + gray_seats
+    coalition_total = coal_women + coal_men
+
+    bloc_rects = [
+        {"cx": ARC_CX - mid_r, "label": ARC_BLOC_CHANGE_LABEL, "total": change_total},
+        {"cx": ARC_CX + mid_r, "label": ARC_BLOC_COALITION_LABEL, "total": coalition_total},
+    ]
+
+    # Fixed symmetric top arrows + total-women callout (matches the design's
+    # geometry exactly -- always centered at the arc's apex, independent of
+    # the actual opposition/coalition seat split).
+    angle_offset = 16.5
+    w1x, w1y = _arc_pt(ARC_RI - 2, 90 - angle_offset)
+    w2x, w2y = _arc_pt(ARC_RI - 2, 90 + angle_offset)
+    target_offset = 20
+    target_y = ARC_CY - 97
+    arrows = [
+        {"x1": w1x, "y1": w1y, "x2": ARC_CX - target_offset, "y2": target_y},
+        {"x1": w2x, "y1": w2y, "x2": ARC_CX + target_offset, "y2": target_y},
+    ]
+    total_label_pos = (ARC_CX, ARC_CY - 78)
+
+    return {
+        "cx": ARC_CX, "cy": ARC_CY,
+        "segments": segments_out,
+        "separators": separators,
+        "gray_label_lines": gray_label_lines,
+        "gray_label_pos": gray_label_pos,
+        "bloc_rects": bloc_rects,
+        "arrows": arrows,
+        "total_label_text": total_women_label,
+        "total_label_pos": total_label_pos,
+        "title_text": title_text,
+        "title_pos": ARC_TITLE_POS,
+        "logo_data_uri": logo_data_uri,
+        "logo_pos": ARC_LOGO_POS,
+        "logo_size": ARC_LOGO_SIZE,
+        "view_box": f"{ARC_VIEWBOX_MIN_X} {ARC_VIEWBOX_MIN_Y} {ARC_VIEWBOX_WIDTH} {ARC_VIEWBOX_HEIGHT}",
+        "svg_width": ARC_VIEWBOX_WIDTH,
+        "svg_height": ARC_VIEWBOX_HEIGHT,
+    }
 
 
-def rtl(text: str) -> str:
-    """Reorder Hebrew (and mixed Hebrew/number) text for correct display
-    in matplotlib, which does not apply the Unicode bidi algorithm itself."""
-    return get_display(str(text))
+# --- HTML/SVG rendering (Jinja2 + headless Chromium) -----------------------
+
+_JINJA_ENV = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)))
+
+
+def _data_uri(path: Path, mime: str) -> str:
+    b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{b64}"
+
+
+def _heebo_data_uris() -> dict:
+    return {
+        "heebo_regular_data_uri": _data_uri(FONTS_DIR / "Heebo-Regular.ttf", "font/ttf"),
+        "heebo_bold_data_uri": _data_uri(FONTS_DIR / "Heebo-Bold.ttf", "font/ttf"),
+    }
+
+
+def _logo_data_uri():
+    if LOGO_PATH.exists():
+        return _data_uri(LOGO_PATH, "image/jpeg")
+    print(f"  warning: logo file not found at {LOGO_PATH}, charts will be "
+          f"generated without it")
+    return None
+
+
+def _render_html_to_square_jpg(html: str, out_path: Path, css_width: int,
+                                css_height: int = None, size: int = 945,
+                                anchor: str = "center") -> None:
+    """Render an HTML string with headless Chromium and save it as an exact
+    `size`x`size` pixel square JPEG. Renders at `css_width`x`css_height`
+    (scaled up for crisp text), pads the shorter side with white to make it
+    square, then resizes down to the exact target size. `anchor` controls
+    where the extra square-up padding goes: "top" keeps content flush
+    against the top edge (all padding added below); "center" splits it
+    evenly above/below.
+
+    css_height=None auto-fits the viewport to the page's *actual* rendered
+    content height instead of using a fixed guess. This matters because a
+    fixed height has to be tall enough for the longest possible party list,
+    but for any shorter list, Playwright's full_page screenshot still
+    captures the whole (mostly empty) viewport -- that leftover blank
+    space then balloons into extra padding on every side once the image is
+    squared up. Auto-fitting means the screenshot is exactly as tall as the
+    real content, so the only padding left is what's actually needed to
+    make a portrait card square.
+    """
+    html_path = out_path.with_suffix(".render.html")
+    html_path.write_text(html, encoding="utf-8")
+    try:
+        scale = size / css_width
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(
+                viewport={"width": css_width, "height": css_height or 100},
+                device_scale_factor=scale,
+            )
+            # .resolve().as_uri() (not an f-string) so this works with a
+            # relative --output-dir (e.g. "graphs/") and on Windows, where
+            # a bare "file://<path>" is not a valid URL.
+            page.goto(html_path.resolve().as_uri())
+            page.wait_for_timeout(150)  # let the embedded font finish applying
+            if css_height is None:
+                measured = page.evaluate("document.documentElement.scrollHeight")
+                page.set_viewport_size({"width": css_width, "height": measured})
+            png_bytes = page.screenshot(full_page=True)
+            browser.close()
+    finally:
+        html_path.unlink(missing_ok=True)
+
+    img = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+    w, h = img.size
+    side = max(w, h)
+    canvas = Image.new("RGB", (side, side), "white")
+    y_offset = 0 if anchor == "top" else (side - h) // 2
+    canvas.paste(img, ((side - w) // 2, y_offset))
+    canvas = canvas.resize((size, size), Image.LANCZOS)
+    canvas.save(out_path, format="JPEG", quality=92)
+
+
+BAR_CHART_CSS_WIDTH = 400
+BAR_LOGO_SIZE_DEFAULT = 78
+BAR_LOGO_MIN_SIZE = 44
+BAR_LOGO_LEGEND_GAP = 10  # px of clear white space kept above the legend
+BAR_ROW_GAP = 5.5  # matches .chart-body's CSS `gap`, for a small allowance
+                    # above the first zero-seat row (blank margin, not text)
+
+
+def _measure_bar_chart_logo_geometry(html: str, out_path: Path) -> dict:
+    """Render `html` (bar_chart.html.j2 with no logo yet) once, headless,
+    and read back the real pixel positions of the first zero-seat row and
+    the legend. Used to place the logo overlay precisely -- as large as
+    possible while never touching the legend below it or the real bars
+    above it -- instead of anchoring to a fixed offset that can overflow
+    for datasets with few zero-seat rows.
+
+    The scratch HTML file is written next to `out_path` (not to a hardcoded
+    /tmp path, which doesn't exist on Windows) and removed afterwards.
+    """
+    html_path = out_path.with_suffix(".measure.html")
+    html_path.write_text(html, encoding="utf-8")
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": BAR_CHART_CSS_WIDTH, "height": 100})
+            # .resolve().as_uri() (not an f-string) so this works with a
+            # relative --output-dir (e.g. "graphs/") and on Windows, where
+            # a bare "file://<path>" is not a valid URL.
+            page.goto(html_path.resolve().as_uri())
+            page.wait_for_timeout(150)
+            info = page.evaluate(
+                """() => {
+                    const legend = document.querySelector('.legend');
+                    const zero = document.querySelector('.party-item[data-zero="true"]');
+                    return {
+                        legendTop: legend ? legend.getBoundingClientRect().top : null,
+                        firstZeroTop: zero ? zero.getBoundingClientRect().top : null,
+                    };
+                }"""
+            )
+            browser.close()
+    finally:
+        html_path.unlink(missing_ok=True)
+    return info
+
+
+def render_bar_chart_html(title_line1: str, title_line2: str, rows: list,
+                           out_path: Path) -> None:
+    template = _JINJA_ENV.get_template("bar_chart.html.j2")
+    has_zero_row = any(r["total"] == 0 for r in rows)
+    logo_uri = _logo_data_uri()
+
+    logo_top = logo_size = None
+    logo_footer_uri = None
+
+    if logo_uri and has_zero_row:
+        measure_html = template.render(
+            title_line1=title_line1, title_line2=title_line2, rows=rows,
+            has_zero_row=has_zero_row, logo_data_uri=None, logo_footer_uri=None,
+            logo_top=None, logo_size=None, **_heebo_data_uris(),
+        )
+        geo = _measure_bar_chart_logo_geometry(measure_html, out_path)
+        legend_top, first_zero_top = geo["legendTop"], geo["firstZeroTop"]
+        if legend_top is not None and first_zero_top is not None:
+            target_bottom = legend_top - BAR_LOGO_LEGEND_GAP
+            highest_top = first_zero_top - BAR_ROW_GAP / 2  # blank row-gap, not content
+            available = target_bottom - highest_top
+            logo_size = max(BAR_LOGO_MIN_SIZE, min(BAR_LOGO_SIZE_DEFAULT, available))
+            logo_top = target_bottom - logo_size
+            logo_top = max(logo_top, highest_top)
+
+    if logo_uri and logo_top is None:
+        logo_footer_uri = logo_uri  # no zero-seat row (or measurement failed) to overlay onto
+
+    html = template.render(
+        title_line1=title_line1, title_line2=title_line2, rows=rows,
+        has_zero_row=has_zero_row,
+        logo_data_uri=logo_uri if logo_top is not None else None,
+        logo_footer_uri=logo_footer_uri,
+        logo_top=logo_top, logo_size=logo_size,
+        **_heebo_data_uris(),
+    )
+    _render_html_to_square_jpg(html, out_path, css_width=BAR_CHART_CSS_WIDTH,
+                                css_height=None, anchor="center")
+
+
+def render_arc_chart_html(arc_data: dict, out_path: Path) -> None:
+    template = _JINJA_ENV.get_template("arc_chart.html.j2")
+    html = template.render(**arc_data, **_heebo_data_uris())
+    _render_html_to_square_jpg(html, out_path, css_width=arc_data["svg_width"],
+                                css_height=arc_data["svg_height"], anchor="center")
 
 
 def find_latest_workbook(input_dir: Path) -> Path:
@@ -220,27 +529,33 @@ def sanitize_filename(text: str) -> str:
     return text
 
 
-def build_detail_lines(outlet: str, date_str: str) -> str:
-    """Single-line subtitle (smaller font, right-aligned when drawn)."""
-    return rtl(f'מספר ח"כים וח"כיות בכנסת הבאה לפי סקר {outlet} מה- {date_str}')
+# NOTE: unlike the old matplotlib charts, none of this text is pre-reordered
+# with a bidi helper -- the HTML templates set dir="rtl"/direction:rtl and
+# the browser applies the Unicode bidi algorithm itself. Pre-reordering here
+# would double-flip and garble the text.
+
+def build_bar_headline() -> str:
+    """Top, larger-font headline for the bar chart -- fixed text, the same
+    on every bar chart (per-outlet and mean-poll alike)."""
+    return "איך תראה הכנסת הבאה?"
 
 
-def build_leading_line(parties: list, women: list) -> str:
-    """Top, larger-font headline: the party with the most expected women,
-    e.g. 'הליכוד מובילה עם 5 נשים'. Ties keep the first occurrence in the
-    given (seat-sorted) order."""
-    if not parties:
-        return ""
-    max_women = max(women)
-    idx = women.index(max_women)
-    leading_party = parties[idx]
-    return rtl(f"{leading_party} מובילה עם {max_women} נשים")
+def build_bar_subheadline(outlet: str) -> str:
+    """Second (smaller) line of the bar chart's title block, naming the
+    poll it's based on."""
+    return f"כמה נשים תהיינה בכנסת הבאה לפי סקר {outlet}"
 
 
-def build_women_count_line(total_women: int) -> str:
-    """Prominent 'N women' line, shared by the bloc (half-donut) chart's
-    per-outlet and mean-poll variants."""
-    return rtl(f"רק {total_women} נשים בכנסת הבאה")
+def build_bar_subheadline_mean() -> str:
+    """Second (smaller) line of the bar chart's title block for the
+    mean-poll (average-of-polls) chart."""
+    return "כמה נשים תהיינה בכנסת הבאה לפי ממוצע הסקרים"
+
+
+def build_arc_title(total_women: int, source_label: str) -> str:
+    """Title above the arc chart, e.g. 'בכנסת הבאה צפויות להיות 33 נשים לפי
+    ממוצע הסקרים' -- `source_label` is 'סקר {outlet}' or 'ממוצע הסקרים'."""
+    return f"בכנסת הבאה צפויות להיות {total_women} נשים לפי {source_label}"
 
 
 def load_mapping(mapping_csv: Path) -> dict:
@@ -249,94 +564,49 @@ def load_mapping(mapping_csv: Path) -> dict:
     return dict(zip(map_df[MAPPING_COL_PARTY], map_df[MAPPING_COL_GROUP]))
 
 
-def build_mean_detail_lines() -> str:
-    """Single-line subtitle for the mean-poll chart (smaller font,
-    right-aligned when drawn)."""
-    return rtl('מספר ח"כים וח"כיות בכנסת הבאה לפי ממוצע הסקרים')
-
-
-def render_bar_chart(parties: list, women: list, men: list, detail_lines: str,
-                      out_path: Path) -> None:
-    """Shared flat-horizontal-bar renderer, used for both the per-outlet
-    poll charts and the mean-poll (average-of-polls) chart."""
+def render_bar_chart(parties: list, women: list, men: list, title_line1: str,
+                      title_line2: str, out_path: Path) -> None:
+    """Shared bar-chart renderer (bar_chart.html.j2), used for both the
+    per-outlet poll charts and the mean-poll (average-of-polls) chart."""
     totals = [w + m for w, m in zip(women, men)]
 
-    y_labels = [rtl(p) for p in parties]
-    y = list(range(len(parties)))
-
-    fig, ax = plt.subplots(figsize=(12, 9))
-
-    # Women form the base of each bar (starting at the left, x=0), with men
-    # stacked after them (further right).
-    bar_height = 0.62
-    ax.barh(y, women, height=bar_height, color=COLOR_WOMEN,
-            label=rtl("כמות נשים צפויה"), zorder=3)
-    ax.barh(y, men, left=women, height=bar_height, color=COLOR_MEN,
-            label=rtl("כמות גברים צפויה"), zorder=3)
-
-    # Data labels inside each non-zero segment
-    for i, (w, m) in enumerate(zip(women, men)):
-        if w > 0:
-            ax.text(w / 2, i, str(w), ha="center", va="center",
-                    color="white", fontsize=18, fontweight="bold", zorder=4)
-        if m > 0:
-            ax.text(w + m / 2, i, str(m), ha="center", va="center",
-                    color="black", fontsize=18, fontweight="bold", zorder=4)
-        if w == 0 and m == 0:
-            ax.text(0.4, i, "0", ha="left", va="center",
-                    color="black", fontsize=15, fontweight="bold", zorder=4)
-
-    # Standard x-axis range (just a little headroom past the longest bar).
-    # The axis itself is hidden (data labels are printed on the bars), so
-    # this range only controls layout, not any visible ticks/labels.
+    # Extra headroom past the longest bar (same 1.8x used previously), so
+    # each unit of data maps to fewer pixels and the bars read visually
+    # shorter rather than always stretching to the row's full width.
     max_total = max(totals) if totals else 0
     tick_max = max(5, (max_total // 5 + 1) * 5)
-    x_max = tick_max * 1.08
-    ax.set_xlim(0, x_max)
-    ax.set_xticks([])
+    x_max = tick_max * 1.8
 
-    ax.set_yticks(y)
-    ax.set_yticklabels(y_labels, fontsize=15)
-    # Largest party first in `parties` -> drawn at the top of the chart.
-    ax.invert_yaxis()
+    rows = []
+    for p, w, m, t in zip(parties, women, men, totals):
+        rows.append({
+            "party": p,
+            "women": w,
+            "men": m,
+            "total": t,
+            "women_pct": round(w / x_max * 100, 2),
+            "men_pct": round(m / x_max * 100, 2),
+        })
 
-    for spine in ("top", "right", "left", "bottom"):
-        ax.spines[spine].set_visible(False)
-    ax.tick_params(axis="x", length=0, labelbottom=False)
-    ax.tick_params(axis="y", length=0)
-
-    # Title block at the very top of the figure (not overlaid on the bars).
-    # A larger-font headline (leading party by expected women) sits on top,
-    # with the previous two-line detail block underneath it.
-    leading_line = build_leading_line(parties, women)
-    fig.text(0.95, 0.985, leading_line, ha="right", va="top",
-              fontsize=29, fontweight="bold", linespacing=1.3, zorder=5)
-    fig.text(0.95, 0.895, detail_lines, ha="right", va="top",
-              fontsize=17, zorder=5)
-
-    ax.legend(
-        loc="upper center", bbox_to_anchor=(0.5, -0.09),
-        ncol=2, frameon=False, fontsize=16,
-    )
-
-    fig.subplots_adjust(top=0.76, bottom=0.16, left=0.16, right=0.97)
-    fig.savefig(out_path, format="jpg", dpi=200, bbox_inches="tight", pad_inches=0.25)
-    plt.close(fig)
+    render_bar_chart_html(title_line1, title_line2, rows, out_path)
 
 
 def plot_poll(df_poll: pd.DataFrame, outlet: str, date_raw, out_path: Path) -> None:
     # Ordered by expected number of women descending (most women at the
-    # top), ties keep the workbook's original row order.
-    df_sorted = df_poll.sort_values(COL_WOMEN, ascending=False, kind="stable")
+    # top); ties broken by expected number of men descending; remaining
+    # ties keep the workbook's original row order.
+    df_sorted = df_poll.sort_values(
+        [COL_WOMEN, COL_MEN], ascending=[False, False], kind="stable"
+    )
 
     parties = df_sorted[COL_PARTY].tolist()
     women = df_sorted[COL_WOMEN].tolist()
     men = df_sorted[COL_MEN].tolist()
 
-    date_str = format_poll_date(date_raw)
-    detail_lines = build_detail_lines(outlet, date_str)
+    title_line1 = build_bar_headline()
+    title_line2 = build_bar_subheadline(outlet)
 
-    render_bar_chart(parties, women, men, detail_lines, out_path)
+    render_bar_chart(parties, women, men, title_line1, title_line2, out_path)
 
 
 def plot_mean_poll(df_mean: pd.DataFrame, out_path: Path) -> None:
@@ -345,165 +615,91 @@ def plot_mean_poll(df_mean: pd.DataFrame, out_path: Path) -> None:
     but with no outlet/date in the title and the trailing totals row
     (סה"כ) excluded before sorting/plotting."""
     df = df_mean[df_mean[COL_PARTY] != TOTAL_ROW_LABEL]
-    df_sorted = df.sort_values(COL_WOMEN, ascending=False, kind="stable")
+    df_sorted = df.sort_values(
+        [COL_WOMEN, COL_MEN], ascending=[False, False], kind="stable"
+    )
 
     parties = df_sorted[COL_PARTY].tolist()
     women = df_sorted[COL_WOMEN].tolist()
     men = df_sorted[COL_MEN].tolist()
 
-    detail_lines = build_mean_detail_lines()
+    title_line1 = build_bar_headline()
+    title_line2 = build_bar_subheadline_mean()
 
-    render_bar_chart(parties, women, men, detail_lines, out_path)
-
-
-def bloc_colors(group_order: list) -> dict:
-    """Fixed, non-cycled color per bloc: the opposition bloc gets the same
-    purple as the bar chart's "women" color; every other bloc gets a
-    progressively lighter tint of that same purple, assigned in the order
-    blocs first appear in mapping.csv (so a bloc's color/tint never changes
-    from poll to poll)."""
-    colors = {}
-    tint_i = 0
-    for g in group_order:
-        if g == OPPOSITION_GROUP_NAME:
-            colors[g] = COLOR_WOMEN
-        else:
-            amount = OTHER_GROUP_TINTS[tint_i % len(OTHER_GROUP_TINTS)]
-            colors[g] = _shade(COLOR_WOMEN, amount)
-            tint_i += 1
-    return colors
+    render_bar_chart(parties, women, men, title_line1, title_line2, out_path)
 
 
-def build_mean_pie_title(total_women: int) -> str:
-    """Title for the mean-poll bloc chart -- same three-line format as
-    build_pie_title, but with no outlet/date (matches build_mean_detail_lines'
-    'ממוצע הסקרים' framing)."""
-    return "\n".join([
-        rtl('מספר ח"כים וח"כיות צפויה'),
-        rtl("לפי ממוצע הסקרים"),
-        rtl(f"רק {total_women} נשים בכנסת הבאה"),
-    ])
-
-
-def render_bloc_chart(df: pd.DataFrame, mapping: dict, count_line: str,
-                       detail_line: str, out_path: Path, skip_label: str) -> bool:
-    """Shared half-donut ("half bagel") bloc-chart renderer, used for both
-    per-outlet polls and the mean-poll aggregate. Blocs with 0 expected
-    women still get a callout showing 0 rather than silently disappearing.
-    Returns False (writing nothing) if there are 0 expected women overall."""
-    df = df.copy()
-    df["__group"] = df[COL_PARTY].map(mapping)
-
-    unmapped = sorted(df.loc[df["__group"].isna(), COL_PARTY].unique())
-    if unmapped:
-        print(f"  warning: no bloc mapping for: {', '.join(unmapped)} "
-              f"(grouped under \"{unmapped[0]}\" as-is)")
-        df["__group"] = df["__group"].fillna(df[COL_PARTY])
-
-    group_order = list(dict.fromkeys(mapping.values()))
-    group_color = bloc_colors(group_order)
-
-    # Keep every bloc (including ones with 0 women) in a fixed order, so
-    # an empty bloc still reserves an angular slot for its callout.
-    by_group = df.groupby("__group", sort=False)[COL_WOMEN].sum()
-    by_group = by_group.reindex(group_order, fill_value=0)
-
-    total_women = int(by_group.sum())
+def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_text: str,
+                       out_path: Path, skip_label: str) -> bool:
+    """Shared arc (half-donut) bloc-chart renderer (arc_chart.html.j2), used
+    for both per-outlet polls and the mean-poll aggregate. Splits seats into
+    opposition/coalition men+women; any party whose mapped group is not
+    exactly OPPOSITION_GROUP_NAME/COALITION_GROUP_NAME (missing from
+    mapping.csv, or mapped to some other/self-referential group) is drawn as
+    a single gray "unmapped" arc segment with no gender split, and its seats
+    are folded into the change bloc's ("גוש השינוי") total. Returns False
+    (writing nothing) if there are 0 expected women overall."""
+    total_women = int(df[COL_WOMEN].sum())
 
     if total_women == 0:
         print(f"  skipping pie chart for {skip_label}: 0 expected women")
         return False
 
-    values = [int(v) for v in by_group.values]
-    colors = [group_color.get(g, "#8C8C8C") for g in group_order]
-
-    fig, ax = plt.subplots(figsize=(9, 6.5))
-
-    outer_r, inner_r = DONUT_OUTER_R, DONUT_INNER_R
-    boundaries = draw_half_donut(ax, values, colors, start_angle=180, end_angle=0,
-                                  outer_r=outer_r, inner_r=inner_r)
-
-    # Non-empty blocs get their value + name/% printed directly on their own
-    # ring segment (stacked along the segment's own radial direction, so it
-    # reads correctly at any angle), colored for contrast against that
-    # segment's fill.
-    r_mid = (inner_r + outer_r) / 2
-    r_offset = (outer_r - inner_r) * 0.24
-
-    for i, (g, v) in enumerate(zip(group_order, values)):
-        if v <= 0:
-            continue
-        mid = (boundaries[i] + boundaries[i + 1]) / 2
-        pct = v / total_women * 100
-        on_segment_color = "white" if g == OPPOSITION_GROUP_NAME else "#262626"
-
-        vx, vy = _donut_point(mid, r_mid + r_offset)
-        ax.text(vx, vy, str(v), ha="center", va="center",
-                fontsize=24, fontweight="bold", color=on_segment_color, zorder=4)
-
-        nx, ny = _donut_point(mid, r_mid - r_offset)
-        ax.text(nx, ny, f"{rtl(g)}\n({pct:.0f}%)", ha="center", va="center",
-                fontsize=13, fontweight="bold", color=on_segment_color, zorder=4)
-
-    # Blocs with 0 expected women (e.g. "חדש תע"ל") have no colored segment
-    # to print on, so they still get a muted callout in the hole below the
-    # ring rather than silently disappearing. Spread multiple empty blocs
-    # into an evenly-spaced row so they never overlap each other.
-    empty_groups = [g for g, v in zip(group_order, values) if v <= 0]
-    if empty_groups:
-        y_value, y_name = inner_r * 0.55, inner_r * 0.22
-        slot_max = min(0.35, inner_r * 0.6)
-        if len(empty_groups) > 1:
-            slot_x = [-slot_max + i * (2 * slot_max) / (len(empty_groups) - 1)
-                      for i in range(len(empty_groups))]
+    opp_women = opp_men = coal_women = coal_men = gray_seats = 0
+    gray_parties = []
+    for _, row in df.iterrows():
+        party = row[COL_PARTY]
+        w, m = int(row[COL_WOMEN]), int(row[COL_MEN])
+        group = mapping.get(party)
+        if group == OPPOSITION_GROUP_NAME:
+            opp_women += w
+            opp_men += m
+        elif group == COALITION_GROUP_NAME:
+            coal_women += w
+            coal_men += m
         else:
-            slot_x = [0.0]
-        for x, g in zip(slot_x, empty_groups):
-            ax.text(x, y_value, "0", ha="center", va="center",
-                    fontsize=24, fontweight="bold", color="#9a9a9a", zorder=4)
-            ax.text(x, y_name, f"{rtl(g)}\n(0%)", ha="center", va="center",
-                    fontsize=13, fontweight="bold", color="#9a9a9a", zorder=4)
+            gray_seats += w + m
+            if w + m > 0:
+                gray_parties.append(party)
 
-    pad = outer_r * 0.35
-    ax.set_xlim(-outer_r - pad, outer_r + pad)
-    ax.set_ylim(-outer_r * 0.15, outer_r + pad)
-    ax.set_aspect("equal", adjustable="box")
-    ax.axis("off")
+    if gray_parties:
+        print(f"  note: shown as a separate (gray) segment, folded into "
+              f"\"{ARC_BLOC_CHANGE_LABEL}\": {', '.join(gray_parties)}")
 
-    # Prominent "N women" line on top (mirrors the bar chart's leading-party
-    # headline), with the smaller, right-aligned subtitle beneath it.
-    ax.text(0.98, 1.14, count_line, transform=ax.transAxes, ha="right", va="bottom",
-            fontsize=22, fontweight="bold", zorder=5)
-    ax.text(0.98, 1.04, detail_line, transform=ax.transAxes, ha="right", va="bottom",
-            fontsize=16, zorder=5)
+    gray_label = " / ".join(gray_parties) if gray_parties else ""
+    total_label_text = f"{total_women} חברות כנסת"
 
-    fig.savefig(out_path, format="jpg", dpi=200, bbox_inches="tight", pad_inches=0.35)
-    plt.close(fig)
+    arc_data = build_arc_chart_data(
+        opp_women=opp_women, opp_men=opp_men,
+        coal_women=coal_women, coal_men=coal_men,
+        gray_seats=gray_seats, gray_label=gray_label,
+        total_women_label=total_label_text, title_text=title_text,
+        logo_data_uri=_logo_data_uri(),
+    )
+    render_arc_chart_html(arc_data, out_path)
     return True
 
 
 def plot_pie_poll(df_poll: pd.DataFrame, outlet: str, date_raw, mapping: dict,
                    out_path: Path) -> bool:
-    """Half-donut bloc chart for a single outlet's poll. Returns False
-    (writing nothing) if there are 0 expected women overall."""
+    """Arc/bloc chart for a single outlet's poll. Returns False (writing
+    nothing) if there are 0 expected women overall."""
     date_str = format_poll_date(date_raw)
     total_women = int(df_poll[COL_WOMEN].sum())
-    count_line = build_women_count_line(total_women)
-    detail_line = build_detail_lines(outlet, date_str)
-    return render_bloc_chart(df_poll, mapping, count_line, detail_line, out_path,
+    title_text = build_arc_title(total_women, f"סקר {outlet}")
+    return render_bloc_chart(df_poll, mapping, title_text, out_path,
                               skip_label=f"{outlet} ({date_str})")
 
 
 def plot_mean_pie_poll(df_mean: pd.DataFrame, mapping: dict, out_path: Path) -> bool:
-    """Half-donut bloc chart for the aggregate 'mean poll' (average-of-polls)
+    """Arc/bloc chart for the aggregate 'mean poll' (average-of-polls)
     estimate in the חישוב 2026 sheet, with the trailing totals row (סה"כ)
     excluded first. Returns False (writing nothing) if there are 0 expected
     women overall."""
     df = df_mean[df_mean[COL_PARTY] != TOTAL_ROW_LABEL]
     total_women = int(df[COL_WOMEN].sum())
-    count_line = build_women_count_line(total_women)
-    detail_line = build_mean_detail_lines()
-    return render_bloc_chart(df, mapping, count_line, detail_line, out_path,
+    title_text = build_arc_title(total_women, "ממוצע הסקרים")
+    return render_bloc_chart(df, mapping, title_text, out_path,
                               skip_label="ממוצע הסקרים")
 
 
