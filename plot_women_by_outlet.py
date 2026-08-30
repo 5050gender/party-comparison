@@ -143,6 +143,8 @@ COALITION_GROUP_NAME = "קואליציה"
 EMAIL_SENDER = "einatact50@gmail.com"
 EMAIL_TO_NAME = "info.5050@merkazim.org"
 EMAIL_TO_ADDR = "info@5050il.co.il"
+EMAIL_TO_NAME_CC = "yael yechieli"
+EMAIL_TO_ADDR_CC = "yaelyec@gmail.com"
 IMAP_HOST = "imap.gmail.com"
 IMAP_DRAFTS_FOLDER = "[Gmail]/Drafts"
 
@@ -830,6 +832,7 @@ def build_email_message(subject: str, body: str, attachments: list) -> EmailMess
     msg = EmailMessage()
     msg["From"] = EMAIL_SENDER
     msg["To"] = formataddr((EMAIL_TO_NAME, EMAIL_TO_ADDR))
+    msg["CC"] = formataddr((EMAIL_TO_NAME_CC, EMAIL_TO_ADDR_CC))
     msg["Subject"] = subject
     msg.set_content(body)
     for path in attachments:
