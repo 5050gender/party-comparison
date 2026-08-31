@@ -82,53 +82,34 @@ def _preview_bar_chart_html() -> str:
 
     title_line1 = m.build_bar_headline()
     title_line2 = m.build_bar_subheadline_mean()
+    total_women = sum(women)
     has_zero_row = any(r["total"] == 0 for r in rows)
     logo_uri = m._logo_data_uri()
 
     template = m._JINJA_ENV.get_template("bar_chart.html.j2")
-    logo_top = logo_size = None
-    logo_footer_uri = None
-
-    if logo_uri and has_zero_row:
-        # Same measurement step render_bar_chart_html uses, so the logo
-        # overlay's size/position in this preview matches a real run.
-        measure_html = template.render(
-            title_line1=title_line1, title_line2=title_line2, rows=rows,
-            has_zero_row=has_zero_row, logo_data_uri=None, logo_footer_uri=None,
-            logo_top=None, logo_size=None, **m._heebo_data_uris(),
-        )
-        geo = m._measure_bar_chart_logo_geometry(
-            measure_html, PREVIEW_DIR / "bar_chart_preview.jpg"
-        )
-        legend_top, first_zero_top = geo["legendTop"], geo["firstZeroTop"]
-        if legend_top is not None and first_zero_top is not None:
-            target_bottom = legend_top - m.BAR_LOGO_LEGEND_GAP
-            highest_top = first_zero_top - m.BAR_ROW_GAP / 2
-            available = target_bottom - highest_top
-            logo_size = max(m.BAR_LOGO_MIN_SIZE, min(m.BAR_LOGO_SIZE_DEFAULT, available))
-            logo_top = target_bottom - logo_size
-            logo_top = max(logo_top, highest_top)
-
-    if logo_uri and logo_top is None:
-        logo_footer_uri = logo_uri
+    # Same fixed-offset placement render_bar_chart_html uses -- see its
+    # docstring -- so this preview matches a real run.
+    logo_overlay_uri = logo_uri if (logo_uri and has_zero_row) else None
+    logo_footer_uri = logo_uri if (logo_uri and not has_zero_row) else None
 
     return template.render(
         title_line1=title_line1, title_line2=title_line2, rows=rows,
-        has_zero_row=has_zero_row,
-        logo_data_uri=logo_uri if logo_top is not None else None,
+        has_zero_row=has_zero_row, total_women=total_women,
+        logo_data_uri=logo_overlay_uri,
         logo_footer_uri=logo_footer_uri,
-        logo_top=logo_top, logo_size=logo_size,
+        logo_size=m.BAR_LOGO_SIZE,
         **m._heebo_data_uris(),
     )
 
 
 def _preview_arc_chart_html() -> str:
     total_women = SAMPLE_ARC["opp_women"] + SAMPLE_ARC["coal_women"]
-    title_text = m.build_arc_title(total_women, "ממוצע הסקרים")
+    title_line1 = m.build_bar_headline()
+    title_line2 = m.build_bar_subheadline_mean()
     arc_data = m.build_arc_chart_data(
         **SAMPLE_ARC,
         total_women_label=f"{total_women} חברות כנסת",
-        title_text=title_text,
+        title_line1=title_line1, title_line2=title_line2,
         logo_data_uri=m._logo_data_uri(),
     )
     template = m._JINJA_ENV.get_template("arc_chart.html.j2")

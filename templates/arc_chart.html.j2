@@ -32,10 +32,15 @@
     </marker>
   </defs>
 
-  {# 0. Title, above the arc #}
-  {% if title_text %}
-  <text x="{{ title_pos[0] }}" y="{{ title_pos[1] }}" font-size="22" fill="#000000"
-        font-weight="bold" text-anchor="middle" direction="rtl" font-family="'Heebo', sans-serif">{{ title_text }}</text>
+  {# 0. Title, above the arc -- same two-line headline + poll/date subhead
+        as the matching bar chart's header #}
+  {% if title_line1 %}
+  <text x="{{ title_line1_pos[0] }}" y="{{ title_line1_pos[1] }}" font-size="21" fill="#000000"
+        font-weight="900" text-anchor="middle" direction="rtl" font-family="'Heebo', sans-serif">{{ title_line1 }}</text>
+  {% endif %}
+  {% if title_line2 %}
+  <text x="{{ title_line2_pos[0] }}" y="{{ title_line2_pos[1] }}" font-size="12" fill="#333333"
+        font-weight="500" text-anchor="middle" direction="rtl" font-family="'Heebo', sans-serif">{{ title_line2 }}</text>
   {% endif %}
 
   {# 1. Arc segments #}

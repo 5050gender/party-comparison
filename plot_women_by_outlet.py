@@ -65,6 +65,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime
 from email.message import EmailMessage
 from email.utils import formataddr
 from pathlib import Path
@@ -143,8 +144,6 @@ COALITION_GROUP_NAME = "קואליציה"
 EMAIL_SENDER = "einatact50@gmail.com"
 EMAIL_TO_NAME = "info.5050@merkazim.org"
 EMAIL_TO_ADDR = "info@5050il.co.il"
-EMAIL_TO_NAME_CC = "yael yechieli"
-EMAIL_TO_ADDR_CC = "yaelyec@gmail.com"
 IMAP_HOST = "imap.gmail.com"
 IMAP_DRAFTS_FOLDER = "[Gmail]/Drafts"
 
@@ -167,8 +166,8 @@ ARC_COLOR_COAL_MEN = "#003F88"
 ARC_CONTOUR_OPP_WOMEN = "#06A0C7"
 ARC_CONTOUR_COAL_WOMEN = "#002244"
 
-ARC_BLOC_CHANGE_LABEL = "גוש השינוי"        # opposition + unmapped/gray seats
-ARC_BLOC_COALITION_LABEL = "גוש ימין-חרדים"  # coalition seats
+ARC_BLOC_CHANGE_LABEL = "גוש השינוי + משותפת"  # opposition + unmapped/gray seats
+ARC_BLOC_COALITION_LABEL = "גוש ימין + חרדים"  # coalition seats
 
 # Canvas: extend the design's own viewBox with a top margin (title) and
 # bottom margin (logo), without moving any of the arc's own coordinates.
@@ -179,7 +178,8 @@ ARC_TOP_MARGIN = 55
 ARC_BOTTOM_MARGIN = 45
 ARC_VIEWBOX_HEIGHT = 385 + ARC_TOP_MARGIN + ARC_BOTTOM_MARGIN
 
-ARC_TITLE_POS = (ARC_CX, 20)
+ARC_TITLE_LINE1_POS = (ARC_CX, 14)  # matches the bar chart's two-line
+ARC_TITLE_LINE2_POS = (ARC_CX, 36)  # header (headline + poll/date subhead)
 ARC_LOGO_SIZE = 90
 # Inline with the bloc-total text (which sits at roughly CY+28..CY+60), in
 # the blank horizontal gap between the two bloc boxes.
@@ -220,8 +220,8 @@ def _arc_split_label_lines(name: str) -> list:
 
 def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
                           coal_men: int, gray_seats: int, gray_label: str,
-                          total_women_label: str, title_text: str,
-                          logo_data_uri: str) -> dict:
+                          total_women_label: str, title_line1: str,
+                          title_line2: str, logo_data_uri: str) -> dict:
     """Compute every geometric value the arc_chart.html.j2 template needs:
     segment paths/colors/labels, separator lines, the two bloc totals at the
     base, the gray/unmapped segment's label, and the top arrows + total-women
@@ -327,8 +327,10 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
         "arrows": arrows,
         "total_label_text": total_women_label,
         "total_label_pos": total_label_pos,
-        "title_text": title_text,
-        "title_pos": ARC_TITLE_POS,
+        "title_line1": title_line1,
+        "title_line1_pos": ARC_TITLE_LINE1_POS,
+        "title_line2": title_line2,
+        "title_line2_pos": ARC_TITLE_LINE2_POS,
         "logo_data_uri": logo_data_uri,
         "logo_pos": ARC_LOGO_POS,
         "logo_size": ARC_LOGO_SIZE,
@@ -418,85 +420,32 @@ def _render_html_to_square_jpg(html: str, out_path: Path, css_width: int,
 
 
 BAR_CHART_CSS_WIDTH = 400
-BAR_LOGO_SIZE_DEFAULT = 78
-BAR_LOGO_MIN_SIZE = 44
-BAR_LOGO_LEGEND_GAP = 10  # px of clear white space kept above the legend
-BAR_ROW_GAP = 5.5  # matches .chart-body's CSS `gap`, for a small allowance
-                    # above the first zero-seat row (blank margin, not text)
-
-
-def _measure_bar_chart_logo_geometry(html: str, out_path: Path) -> dict:
-    """Render `html` (bar_chart.html.j2 with no logo yet) once, headless,
-    and read back the real pixel positions of the first zero-seat row and
-    the legend. Used to place the logo overlay precisely -- as large as
-    possible while never touching the legend below it or the real bars
-    above it -- instead of anchoring to a fixed offset that can overflow
-    for datasets with few zero-seat rows.
-
-    The scratch HTML file is written next to `out_path` (not to a hardcoded
-    /tmp path, which doesn't exist on Windows) and removed afterwards.
-    """
-    html_path = out_path.with_suffix(".measure.html")
-    html_path.write_text(html, encoding="utf-8")
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch()
-            page = browser.new_page(viewport={"width": BAR_CHART_CSS_WIDTH, "height": 100})
-            # .resolve().as_uri() (not an f-string) so this works with a
-            # relative --output-dir (e.g. "graphs/") and on Windows, where
-            # a bare "file://<path>" is not a valid URL.
-            page.goto(html_path.resolve().as_uri())
-            page.wait_for_timeout(150)
-            info = page.evaluate(
-                """() => {
-                    const legend = document.querySelector('.legend');
-                    const zero = document.querySelector('.party-item[data-zero="true"]');
-                    return {
-                        legendTop: legend ? legend.getBoundingClientRect().top : null,
-                        firstZeroTop: zero ? zero.getBoundingClientRect().top : null,
-                    };
-                }"""
-            )
-            browser.close()
-    finally:
-        html_path.unlink(missing_ok=True)
-    return info
+BAR_LOGO_SIZE = 95  # matches templates/bar_chart.html.j2's .logo-overlay-img
+                     # size and the reference mockup's .logo-floating
 
 
 def render_bar_chart_html(title_line1: str, title_line2: str, rows: list,
-                           out_path: Path) -> None:
+                           total_women: int, out_path: Path) -> None:
+    """Renders bar_chart.html.j2. The logo+"סה"כ X נשים" label overlay is
+    positioned with a fixed CSS offset from the bottom of .chart-body
+    (matching the reference mockup exactly -- see the template's
+    .logo-overlay-box), landing in the blank space of the trailing
+    zero-seat rows every current poll has. Falls back to a plain footer
+    watermark (below the legend) only if a poll has no zero-seat rows at
+    all, since the fixed offset would otherwise land on top of real bars."""
     template = _JINJA_ENV.get_template("bar_chart.html.j2")
     has_zero_row = any(r["total"] == 0 for r in rows)
     logo_uri = _logo_data_uri()
 
-    logo_top = logo_size = None
-    logo_footer_uri = None
-
-    if logo_uri and has_zero_row:
-        measure_html = template.render(
-            title_line1=title_line1, title_line2=title_line2, rows=rows,
-            has_zero_row=has_zero_row, logo_data_uri=None, logo_footer_uri=None,
-            logo_top=None, logo_size=None, **_heebo_data_uris(),
-        )
-        geo = _measure_bar_chart_logo_geometry(measure_html, out_path)
-        legend_top, first_zero_top = geo["legendTop"], geo["firstZeroTop"]
-        if legend_top is not None and first_zero_top is not None:
-            target_bottom = legend_top - BAR_LOGO_LEGEND_GAP
-            highest_top = first_zero_top - BAR_ROW_GAP / 2  # blank row-gap, not content
-            available = target_bottom - highest_top
-            logo_size = max(BAR_LOGO_MIN_SIZE, min(BAR_LOGO_SIZE_DEFAULT, available))
-            logo_top = target_bottom - logo_size
-            logo_top = max(logo_top, highest_top)
-
-    if logo_uri and logo_top is None:
-        logo_footer_uri = logo_uri  # no zero-seat row (or measurement failed) to overlay onto
+    logo_overlay_uri = logo_uri if (logo_uri and has_zero_row) else None
+    logo_footer_uri = logo_uri if (logo_uri and not has_zero_row) else None
 
     html = template.render(
         title_line1=title_line1, title_line2=title_line2, rows=rows,
-        has_zero_row=has_zero_row,
-        logo_data_uri=logo_uri if logo_top is not None else None,
+        has_zero_row=has_zero_row, total_women=total_women,
+        logo_data_uri=logo_overlay_uri,
         logo_footer_uri=logo_footer_uri,
-        logo_top=logo_top, logo_size=logo_size,
+        logo_size=BAR_LOGO_SIZE,
         **_heebo_data_uris(),
     )
     _render_html_to_square_jpg(html, out_path, css_width=BAR_CHART_CSS_WIDTH,
@@ -532,6 +481,13 @@ def format_poll_date(raw) -> str:
     return f"{ts.day}.{ts.month}"
 
 
+def format_date_short(raw) -> str:
+    """Format a date as DD.MM.YY (zero-padded day/month, 2-digit year),
+    Israeli style -- used in the bar chart's header subtitle."""
+    ts = pd.to_datetime(raw)
+    return ts.strftime("%d.%m.%y")
+
+
 def sanitize_filename(text: str) -> str:
     text = re.sub(r'[\\/*?:"<>|]', "", text)
     text = text.strip().replace(" ", "_")
@@ -546,25 +502,21 @@ def sanitize_filename(text: str) -> str:
 def build_bar_headline() -> str:
     """Top, larger-font headline for the bar chart -- fixed text, the same
     on every bar chart (per-outlet and mean-poll alike)."""
-    return "איך תראה הכנסת הבאה?"
+    return "כמה נשים תהיינה בכנסת הבאה?"
 
 
-def build_bar_subheadline(outlet: str) -> str:
+def build_bar_subheadline(outlet: str, date_raw) -> str:
     """Second (smaller) line of the bar chart's title block, naming the
-    poll it's based on."""
-    return f"כמה נשים תהיינה בכנסת הבאה לפי סקר {outlet}"
+    poll it's based on and the poll's own date."""
+    return f"לפי סקר {outlet} | תאריך: {format_date_short(date_raw)}"
 
 
 def build_bar_subheadline_mean() -> str:
     """Second (smaller) line of the bar chart's title block for the
-    mean-poll (average-of-polls) chart."""
-    return "כמה נשים תהיינה בכנסת הבאה לפי ממוצע הסקרים"
-
-
-def build_arc_title(total_women: int, source_label: str) -> str:
-    """Title above the arc chart, e.g. 'בכנסת הבאה צפויות להיות 33 נשים לפי
-    ממוצע הסקרים' -- `source_label` is 'סקר {outlet}' or 'ממוצע הסקרים'."""
-    return f"בכנסת הבאה צפויות להיות {total_women} נשים לפי {source_label}"
+    mean-poll (average-of-polls) chart -- there's no single poll date to
+    show (it aggregates every outlet's latest poll), so this uses today's
+    date instead, i.e. when this snapshot was generated."""
+    return f"לפי ממוצע הסקרים | תאריך: {format_date_short(datetime.now())}"
 
 
 def load_mapping(mapping_csv: Path) -> dict:
@@ -597,7 +549,8 @@ def render_bar_chart(parties: list, women: list, men: list, title_line1: str,
             "men_pct": round(m / x_max * 100, 2),
         })
 
-    render_bar_chart_html(title_line1, title_line2, rows, out_path)
+    total_women = sum(women)
+    render_bar_chart_html(title_line1, title_line2, rows, total_women, out_path)
 
 
 def plot_poll(df_poll: pd.DataFrame, outlet: str, date_raw, out_path: Path) -> None:
@@ -613,7 +566,7 @@ def plot_poll(df_poll: pd.DataFrame, outlet: str, date_raw, out_path: Path) -> N
     men = df_sorted[COL_MEN].tolist()
 
     title_line1 = build_bar_headline()
-    title_line2 = build_bar_subheadline(outlet)
+    title_line2 = build_bar_subheadline(outlet, date_raw)
 
     render_bar_chart(parties, women, men, title_line1, title_line2, out_path)
 
@@ -638,8 +591,8 @@ def plot_mean_poll(df_mean: pd.DataFrame, out_path: Path) -> None:
     render_bar_chart(parties, women, men, title_line1, title_line2, out_path)
 
 
-def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_text: str,
-                       out_path: Path, skip_label: str) -> bool:
+def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_line1: str,
+                       title_line2: str, out_path: Path, skip_label: str) -> bool:
     """Shared arc (half-donut) bloc-chart renderer (arc_chart.html.j2), used
     for both per-outlet polls and the mean-poll aggregate. Splits seats into
     opposition/coalition men+women; any party whose mapped group is not
@@ -682,7 +635,8 @@ def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_text: str,
         opp_women=opp_women, opp_men=opp_men,
         coal_women=coal_women, coal_men=coal_men,
         gray_seats=gray_seats, gray_label=gray_label,
-        total_women_label=total_label_text, title_text=title_text,
+        total_women_label=total_label_text,
+        title_line1=title_line1, title_line2=title_line2,
         logo_data_uri=_logo_data_uri(),
     )
     render_arc_chart_html(arc_data, out_path)
@@ -692,11 +646,13 @@ def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_text: str,
 def plot_pie_poll(df_poll: pd.DataFrame, outlet: str, date_raw, mapping: dict,
                    out_path: Path) -> bool:
     """Arc/bloc chart for a single outlet's poll. Returns False (writing
-    nothing) if there are 0 expected women overall."""
+    nothing) if there are 0 expected women overall. Title block is the same
+    headline + poll/date subhead as the matching bar chart (build_bar_headline
+    / build_bar_subheadline), so both charts read as one consistent pair."""
     date_str = format_poll_date(date_raw)
-    total_women = int(df_poll[COL_WOMEN].sum())
-    title_text = build_arc_title(total_women, f"סקר {outlet}")
-    return render_bloc_chart(df_poll, mapping, title_text, out_path,
+    title_line1 = build_bar_headline()
+    title_line2 = build_bar_subheadline(outlet, date_raw)
+    return render_bloc_chart(df_poll, mapping, title_line1, title_line2, out_path,
                               skip_label=f"{outlet} ({date_str})")
 
 
@@ -704,11 +660,11 @@ def plot_mean_pie_poll(df_mean: pd.DataFrame, mapping: dict, out_path: Path) -> 
     """Arc/bloc chart for the aggregate 'mean poll' (average-of-polls)
     estimate in the חישוב 2026 sheet, with the trailing totals row (סה"כ)
     excluded first. Returns False (writing nothing) if there are 0 expected
-    women overall."""
+    women overall. Same title block as plot_mean_poll's bar chart."""
     df = df_mean[df_mean[COL_PARTY] != TOTAL_ROW_LABEL]
-    total_women = int(df[COL_WOMEN].sum())
-    title_text = build_arc_title(total_women, "ממוצע הסקרים")
-    return render_bloc_chart(df, mapping, title_text, out_path,
+    title_line1 = build_bar_headline()
+    title_line2 = build_bar_subheadline_mean()
+    return render_bloc_chart(df, mapping, title_line1, title_line2, out_path,
                               skip_label="ממוצע הסקרים")
 
 
@@ -832,7 +788,6 @@ def build_email_message(subject: str, body: str, attachments: list) -> EmailMess
     msg = EmailMessage()
     msg["From"] = EMAIL_SENDER
     msg["To"] = formataddr((EMAIL_TO_NAME, EMAIL_TO_ADDR))
-    msg["CC"] = formataddr((EMAIL_TO_NAME_CC, EMAIL_TO_ADDR_CC))
     msg["Subject"] = subject
     msg.set_content(body)
     for path in attachments:

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <style>
         /* Heebo embedded locally as data: URIs -- no network/CDN dependency
-           at render time (matches the matplotlib charts' bundled font). */
+           at render time (matches the arc chart's font). */
         @font-face {
             font-family: 'Heebo';
             src: url('{{ heebo_regular_data_uri }}') format('truetype');
@@ -62,20 +62,36 @@
 
         /* Overlaid in the blank space of the zero-seat rows (party name
            and "0" label both sit at the left, so the right side of those
-           rows is empty). `top`/`width`/`height` are computed in Python
-           from the actual rendered layout (see render_bar_chart_html) so
-           the logo always sits clear of both the real bars above it and
-           the legend below it, regardless of how many zero-seat rows
-           exist. */
-        .chart-wrapper {
-            position: relative;
-        }
-        .logo-overlay {
+           rows is empty). Fixed offset from the bottom of .chart-body
+           (matches the reference mockup exactly) -- .logo-overlay-box is
+           rendered as the first child of .chart-body, so this "bottom" is
+           relative to the chart-body's own end, not the legend below it. */
+        .logo-overlay-box {
             position: absolute;
-            right: 8px;
-            object-fit: contain;
+            bottom: 85px;
+            right: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             pointer-events: none;
             z-index: 5;
+        }
+        .logo-overlay-text {
+            font-weight: 900;
+            font-size: 21px;
+            letter-spacing: -0.4px;
+            color: #702283;
+            margin-bottom: 4px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.85);
+            padding: 2px 6px;
+            border-radius: 4px;
+            line-height: 1;
+            white-space: nowrap;
+        }
+        .logo-overlay-img {
+            object-fit: contain;
+            display: block;
         }
 
         /* Fallback when the dataset has no zero-seat rows to overlay onto:
@@ -83,8 +99,18 @@
            real bars. */
         .logo-footer {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            align-items: center;
             margin-top: 10px;
+        }
+        .logo-footer-text {
+            font-weight: 900;
+            font-size: 21px;
+            letter-spacing: -0.4px;
+            color: #702283;
+            margin-bottom: 4px;
+            text-align: center;
+            line-height: 1;
         }
         .logo-footer img {
             width: 70px;
@@ -195,6 +221,13 @@
         </div>
 
         <div class="chart-body">
+            {% if logo_data_uri %}
+            <div class="logo-overlay-box">
+                <div class="logo-overlay-text">סה"כ {{ total_women }} נשים</div>
+                <img class="logo-overlay-img" src="{{ logo_data_uri }}" alt="5050 לוגו"
+                     style="width: {{ logo_size }}px; height: {{ logo_size }}px;">
+            </div>
+            {% endif %}
             {% for row in rows %}
             <div class="party-item"{% if row.total == 0 %} data-zero="true"{% endif %}>
                 <div class="party-name">{{ row.party }}</div>
@@ -226,11 +259,9 @@
             </div>
         </div>
 
-        {% if logo_data_uri and logo_top is not none %}
-        <img class="logo-overlay" src="{{ logo_data_uri }}" alt="5050 לוגו"
-             style="top: {{ logo_top }}px; width: {{ logo_size }}px; height: {{ logo_size }}px;">
-        {% elif logo_footer_uri %}
+        {% if logo_footer_uri %}
         <div class="logo-footer">
+            <div class="logo-footer-text">סה"כ {{ total_women }} נשים</div>
             <img src="{{ logo_footer_uri }}" alt="5050 לוגו">
         </div>
         {% endif %}
