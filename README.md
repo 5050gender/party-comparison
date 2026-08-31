@@ -10,7 +10,7 @@ An interactive HTML page comparing Israeli political parties ahead of the 2026 K
 The main deliverable - a single self-contained HTML page (party, poll and channel data embedded inline as JS constants: `PARTIES`, `CHANNELS`, `CHANNEL_DATA`, `LOGOS`). Served via GitHub Pages at the live URL above; can also be embedded in an iframe.
 
 ### party-comparison-updated-vNN.xlsx
-The data workbook backing the page (v40 is current; older versions are kept for history). Key tabs:
+The data workbook backing the page (v42 is current; older versions are kept for history). Key tabs:
 - `סקר 2026` - overall seat survey
 - `מועמדים 2026` - per-party candidate lists with gender
 - `חישוב 2026` - computed current/expected women counts and percentages
