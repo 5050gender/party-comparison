@@ -61,6 +61,19 @@ python preview_charts.py
 ```
 Writes `preview/bar_chart_preview.html` and `preview/arc_chart_preview.html` and opens both in your default browser. Edit a template, re-run, refresh the tab.
 
+### extract_chart_parameters.py / apply_chart_parameters.py
+A round-trip pair for tweaking chart design (fonts, colors, sizes, spacing, fixed label text) as a spreadsheet instead of editing the templates/`plot_women_by_outlet.py` directly. Covers CSS in `bar_chart.html.j2`, SVG attributes in `arc_chart.html.j2`, and design constants in `plot_women_by_outlet.py` - never the workbook data.
+
+```
+python extract_chart_parameters.py [OUTPUT_CSV]
+```
+Writes every design parameter (not poll data) to a CSV with columns `source_file, section, parameter, value, description` (defaults to `chart_template_parameters.csv` next to the script).
+
+```
+python apply_chart_parameters.py CSV [--project-dir DIR] [--dry-run] [--no-backup]
+```
+Edit the CSV's `value` column, then run this to write the changes back into the templates and script. `--dry-run` previews a unified diff of every change without writing anything - always run this first. Real runs write a `.bak` backup of each changed file (skip with `--no-backup`) and validate the result (Jinja2/Python syntax check) before saving, so a bad edit fails loudly instead of corrupting a file. A handful of rows (derived values, and text that mixes fixed wording with live data like the outlet name or date) aren't safely auto-patchable and are reported as skipped, with a pointer to the function to hand-edit instead.
+
 ### update_channel_polls.py
 Refreshes the `סקרים לפי ערוץ` tab from themadad.com/polls26's embedded poll history.
 

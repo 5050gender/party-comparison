@@ -145,9 +145,13 @@ FIELD_TO_PARTY = [
     ('otzma', 'עוצמה יהודית'),
     ('bennett', 'ביחד (בנט-לפיד)'),
     ('eisenkot', 'ישר!'),
-    ('miluimnikim', 'טרופר-הנדל'),  # "בית ציוני - המילואימניקים" (Tropper-Hendel), added 2026-08
     ('erdan', 'האחדות'),  # Gilad Erdan + Yuli Edelstein's party, founded 2026-08-06, added 2026-08
     ('winter', 'עמך ישראל'),  # Ofer Winter's party, launched 2026-08-25, added 2026-08
+    ('miluimnikim', 'המילואימניקים-הכלכלית'),  # confirmed live 2026-09-08: themadad.com re-purposed
+                                                # this same field slug (formerly טרופר-הנדל, see
+                                                # IGNORED_AVERAGE_LABELS) for the new Hendel+Zelicha
+                                                # merger - 'economy' stayed null in every poll checked,
+                                                # 'miluimnikim' carried the real value (e.g. "4").
 ]
 
 # themadad.com's average-table party label (as it appears in the page's
@@ -171,12 +175,11 @@ AVERAGE_LABEL_TO_PARTY = [
                                      # below are stale leftovers, see IGNORED_AVERAGE_LABELS.
     ('רע"מ', 'רע"מ'),
     ('הציונות הדתית', 'הציונות הדתית'),
-    ('טרופר-הנדל', 'טרופר-הנדל'),
-    ('בית ציוני-המילואימניקים', 'טרופר-הנדל'),  # site's actual on-page label for this party
     ('כחול לבן', 'כחול לבן'),
     ('רשימה ערבית מאוחדת', 'רשימה ערבית מאוחדת'),
     ('מפלגה בראשות גלעד ארדן ויולי אדלשטיין', 'האחדות'),
     ('עופר וינטר', 'עמך ישראל'),  # Ofer Winter's party, launched 2026-08-25, added 2026-08
+    ('המפלגה של הנדל וזליכה', 'המילואימניקים-הכלכלית'),  # Hendel + Zelicha merger, added 2026-09-07
 ]
 
 # Labels themadad.com's averageMaker.php still emits but that this project
@@ -190,15 +193,24 @@ AVERAGE_LABEL_TO_PARTY = [
 #   own average table and current-Knesset comparison table both show only
 #   the combined "הרשימה המשותפת" figure now, so these two are ignored
 #   rather than mapped, to avoid double-counting the merged party's average.
+# - 'טרופר-הנדל' / 'בית ציוני-המילואימניקים': this project stopped tracking
+#   the Tropper-Hendel party (2026-08); ignored rather than mapped so future
+#   runs don't warn about it.
 IGNORED_AVERAGE_LABELS = {
     'יש עתיד',
     'חדש תע"ל',
     'בל"ד',
+    'טרופר-הנדל',
+    'בית ציוני-המילואימניקים',
 }
 
 SHEET_NAME = 'סקרים לפי ערוץ'
+CALC_BY_CHANNEL_SHEET_NAME = 'חישוב לפי ערוץ'
 AVG_SHEET_NAME = 'סקר 2026'
 AVG_COLUMN = 2  # column B - 'ממוצע המדד (סקר)'
+CANDIDATES_SHEET_NAME = 'מועמדים 2026'
+FEMALE = "נ"
+MALE = "ז"
 
 
 def _normalize_quotes(s):
@@ -374,6 +386,56 @@ def write_sheet(wb, channel_polls):
     return channel_order
 
 
+def write_calc_by_channel_sheet(wb, channel_order):
+    """(Re)write the חישוב לפי ערוץ tab: one row per (channel, tracked party)
+    pair, with the same COUNTIFS/INDEX formulas used when this tab was first
+    built (see module docstring). This tab used to be hand-maintained -
+    write_sheet() above only ever touched סקרים לפי ערוץ, on the assumption
+    that existing formulas here would "just recalculate" once that tab's
+    values changed. That's true for parties that already have rows, but a
+    brand-new party (a new FIELD_TO_PARTY entry) needs brand-new rows, which
+    Excel can't add on its own - so every time a new party was added, this
+    tab silently fell out of sync (see git history around 2026-09-08 for a
+    couple of rounds of this). Rebuilding it fully here, the same way
+    write_sheet() already rebuilds סקרים לפי ערוץ, keeps it correct with no
+    manual step - nothing in this tab is hand-edited (every column is a
+    formula), so a full rebuild loses nothing.
+    """
+    if CALC_BY_CHANNEL_SHEET_NAME in wb.sheetnames:
+        del wb[CALC_BY_CHANNEL_SHEET_NAME]
+    ws = wb.create_sheet(CALC_BY_CHANNEL_SHEET_NAME)
+
+    headers = ['כלי תקשורת', 'תאריך הסקר', 'מפלגה', 'מנדטים', 'כמות נשים צפויה',
+               'כמות גברים צפויה', 'אחוז נשים צפוי', 'מועמדים ידועים (סה"כ)', 'הערה']
+    ws.append(headers)
+
+    from openpyxl.utils import get_column_letter
+    party_names = [p for _, p in FIELD_TO_PARTY]
+
+    r = 2
+    for chan in channel_order:
+        for i, party in enumerate(party_names):
+            col_letter = get_column_letter(5 + i)  # party columns in סקרים לפי ערוץ start at E
+            ws.cell(row=r, column=1, value=chan)
+            ws.cell(row=r, column=2,
+                    value="=INDEX('{0}'!$B:$B,MATCH($A{1},'{0}'!$A:$A,0))".format(SHEET_NAME, r))
+            ws.cell(row=r, column=3, value=party)
+            ws.cell(row=r, column=4,
+                    value="=INDEX('{0}'!{1}:{1},MATCH($A{2},'{0}'!$A:$A,0))".format(SHEET_NAME, col_letter, r))
+            ws.cell(row=r, column=5,
+                    value='=COUNTIFS(\'{0}\'!$A:$A,$C{1},\'{0}\'!$D:$D,"{2}",\'{0}\'!$B:$B,"<="&$D{1})'
+                    .format(CANDIDATES_SHEET_NAME, r, FEMALE))
+            ws.cell(row=r, column=6,
+                    value='=COUNTIFS(\'{0}\'!$A:$A,$C{1},\'{0}\'!$D:$D,"{2}",\'{0}\'!$B:$B,"<="&$D{1})'
+                    .format(CANDIDATES_SHEET_NAME, r, MALE))
+            ws.cell(row=r, column=7, value='=IF($D{0}=0,0,$E{0}/$D{0})'.format(r))
+            ws.cell(row=r, column=8,
+                    value="=COUNTIFS('{0}'!$A:$A,$C{1})".format(CANDIDATES_SHEET_NAME, r))
+            ws.cell(row=r, column=9,
+                    value='=IF(AND($D{0}>0,$H{0}=0),"אין נתוני מועמדים לחישוב","")'.format(r))
+            r += 1
+
+
 def write_average_sheet(wb, party_averages):
     """Write themadad.com's general-average figures into the סקר 2026 tab's
     column B ('ממוצע המדד (סקר)'). Only updates rows that already exist in
@@ -461,10 +523,13 @@ def main():
 
     wb = openpyxl.load_workbook(args.input_xlsx, data_only=False)
     channel_order = write_sheet(wb, channel_polls)
+    write_calc_by_channel_sheet(wb, channel_order)
     avg_updated, avg_missing, avg_unmatched = write_average_sheet(wb, party_averages)
     wb.save(args.output_xlsx)
 
     print("\nWrote {} channels to '{}' tab in {}".format(len(channel_order), SHEET_NAME, args.output_xlsx))
+    print("Rebuilt '{}' tab ({} rows) in {}".format(
+        CALC_BY_CHANNEL_SHEET_NAME, len(channel_order) * len(FIELD_TO_PARTY), args.output_xlsx))
 
     print("\nUpdated {} rows in '{}' tab, column B ('ממוצע המדד (סקר)'):".format(len(avg_updated), AVG_SHEET_NAME))
     for name, avg in sorted(avg_updated, key=lambda t: -t[1]):

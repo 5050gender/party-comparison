@@ -274,6 +274,16 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
+    # Windows consoles default stdout/stderr to the system codepage (e.g. cp1252),
+    # which can't encode the Hebrew text in the report — force UTF-8 so `print()`
+    # doesn't crash on party names / notes containing Hebrew characters.
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name)
+        if hasattr(stream, "reconfigure"):
+            # errors="replace" so an odd console codepage garbles rather than
+            # crashes — the important thing is the run completes and saves.
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     wb = openpyxl.load_workbook(args.xlsx)
     for sheet in (POLL_SHEET, CANDIDATES_SHEET, CALC_SHEET):
         if sheet not in wb.sheetnames:
