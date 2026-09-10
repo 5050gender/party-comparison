@@ -16,12 +16,10 @@ Usage:
        the browser tab (or run it once and refresh after each edit -- the
        files are rewritten in place, only the content changes).
 
-The bar chart's logo overlay is positioned using the same measurement step
-the real script uses, so its placement here matches a real run. Everything
-else (colors, fonts, spacing, arc geometry, text) is exactly what a real
-run would produce for this sample data -- this is the *same* rendering
-code, just pointed at made-up numbers instead of a workbook, and stopped
-short of the final screenshot-to-JPG step.
+Everything (colors, fonts, spacing, bar scaling, arc geometry, text) is
+exactly what a real run would produce for this sample data -- this is the
+*same* rendering code, just pointed at made-up numbers instead of a
+workbook, and stopped short of the final screenshot-to-JPG step.
 """
 import importlib.util
 import sys
@@ -54,18 +52,20 @@ _spec.loader.exec_module(m)
 # to react to.
 SAMPLE_PARTIES = [
     # (party name,            women, men)
-    ("ישר!",               12, 12),
-    ("ביחד (בנט-לפיד)",      7,  7),
+    ("ישר!",               13, 12),
+    ("ביחד (בנט-לפיד)",      6,  7),
     ("הדמוקרטים",            5,  5),
-    ("ישראל ביתנו",          4,  5),
-    ("הליכוד",               2, 21),
-    ("עוצמה יהודית",         1,  8),
+    ("ישראל ביתנו",          3,  6),
+    ("הליכוד",               3, 21),
+    ("עוצמה יהודית",         2,  4),
+    ("עמך ישראל",             2,  3),
     ("הציונות הדתית",        1,  4),
-    ('רע"מ',                 1,  4),
     ("יהדות התורה",          0,  8),
     ('ש"ס',                  0,  7),
-    ("הרשימה המשותפת",       0,  6),
+    ("הרשימה המשותפת",       0,  7),
+    ('רע"מ',                 0,  4),
     ("כחול לבן",             0,  0),
+    ("המילואימניקים",             0,  0),
 ]
 
 SAMPLE_ARC = dict(
@@ -80,34 +80,37 @@ def _preview_bar_chart_html() -> str:
     men = [mm for _p, _w, mm in SAMPLE_PARTIES]
     totals = [w + mm for w, mm in zip(women, men)]
 
+    # Same pixels-per-mandate derivation render_bar_chart() uses -- see its
+    # docstring -- so this preview matches a real run.
     max_total = max(totals)
     tick_max = max(5, (max_total // 5 + 1) * 5)
-    x_max = tick_max * 1.8
+    x_max = tick_max * m.BAR_HEADROOM_MULTIPLIER
+    px_per_seat = m.BAR_AREA_COL_WIDTH / x_max if x_max else 0
+    NARROW_PX = 34
 
-    rows = [{
-        "party": p, "women": w, "men": mm, "total": t,
-        "women_pct": round(w / x_max * 100, 2),
-        "men_pct": round(mm / x_max * 100, 2),
-    } for p, w, mm, t in zip(parties, women, men, totals)]
+    rows = []
+    for p, w, mm, t in zip(parties, women, men, totals):
+        total_px = round(t * px_per_seat)
+        women_px = round(w * px_per_seat)
+        men_px = total_px - women_px
+        rows.append({
+            "party": p, "women": w, "men": mm, "total": t,
+            "total_px": total_px, "women_px": women_px, "men_px": men_px,
+            "narrow": women_px < NARROW_PX,
+        })
 
     title_line1 = m.build_bar_headline()
     title_line2 = m.build_bar_subheadline_mean()
     total_women = sum(women)
-    has_zero_row = any(r["total"] == 0 for r in rows)
-    logo_uri = m._logo_data_uri()
 
     template = m._JINJA_ENV.get_template("bar_chart.html.j2")
-    # Same fixed-offset placement render_bar_chart_html uses -- see its
-    # docstring -- so this preview matches a real run.
-    logo_overlay_uri = logo_uri if (logo_uri and has_zero_row) else None
-    logo_footer_uri = logo_uri if (logo_uri and not has_zero_row) else None
-
     return template.render(
         title_line1=title_line1, title_line2=title_line2, rows=rows,
-        has_zero_row=has_zero_row, total_women=total_women,
-        logo_data_uri=logo_overlay_uri,
-        logo_footer_uri=logo_footer_uri,
+        total_women=total_women,
+        logo_data_uri=m._logo_data_uri(),
         logo_size=m.BAR_LOGO_SIZE,
+        name_col_width=m.BAR_NAME_COL_WIDTH,
+        bar_col_width=m.BAR_AREA_COL_WIDTH,
         **m._heebo_data_uris(),
     )
 

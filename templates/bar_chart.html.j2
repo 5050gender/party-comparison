@@ -18,198 +18,132 @@
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; }
         body {
-            font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: #ffffff;
             color: #000000;
             display: flex;
             justify-content: center;
-            padding: 12px 14px 14px;
+            padding: 20px 15px 30px;
         }
 
         .chart-wrapper {
-            width: 400px;
+            width: fit-content;
             display: flex;
             flex-direction: column;
+            align-items: center;
         }
 
         .header-area {
             text-align: center;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
 
         .header-title {
-            font-size: 21px;
+            font-size: 34px;
             font-weight: 900;
-            margin: 0 0 3px 0;
-            letter-spacing: -0.4px;
+            margin: 0 0 6px 0;
             line-height: 1.15;
         }
 
         .header-subtitle {
-            font-size: 12px;
-            color: #333;
-            font-weight: 500;
-            margin: 0;
+            font-size: 24px;
+            color: #000000;
+            font-weight: 800;
+            margin: 0 0 12px 0;
+            line-height: 1.2;
+        }
+
+        /* "סה"כ X נשים" summary badge, under the subtitle */
+        .total-badge {
+            background-color: #8A42FF;
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: 800;
+            padding: 4px 22px;
+            border-radius: 4px;
+            display: inline-block;
+            margin: 0 auto;
             line-height: 1.25;
         }
 
         .chart-body {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            gap: 5.5px;
-        }
-
-        /* Overlaid in the blank space of the zero-seat rows (party name
-           and "0" label both sit at the left, so the right side of those
-           rows is empty). Fixed offset from the bottom of .chart-body
-           (matches the reference mockup exactly) -- .logo-overlay-box is
-           rendered as the first child of .chart-body, so this "bottom" is
-           relative to the chart-body's own end, not the legend below it. */
-        .logo-overlay-box {
-            position: absolute;
-            bottom: 85px;
-            right: 12px;
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: {{ name_col_width }}px {{ bar_col_width }}px;
+            row-gap: 8px;
+            column-gap: 8px;
             align-items: center;
-            pointer-events: none;
-            z-index: 5;
-        }
-        .logo-overlay-text {
-            font-weight: 900;
-            font-size: 21px;
-            letter-spacing: -0.4px;
-            color: #702283;
-            margin-bottom: 4px;
-            text-align: center;
-            background: rgba(255, 255, 255, 0.85);
-            padding: 2px 6px;
-            border-radius: 4px;
-            line-height: 1;
-            white-space: nowrap;
-        }
-        .logo-overlay-img {
-            object-fit: contain;
-            display: block;
-        }
-
-        /* Fallback when the dataset has no zero-seat rows to overlay onto:
-           a plain footer watermark below the legend, which never overlaps
-           real bars. */
-        .logo-footer {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-top: 10px;
-        }
-        .logo-footer-text {
-            font-weight: 900;
-            font-size: 21px;
-            letter-spacing: -0.4px;
-            color: #702283;
-            margin-bottom: 4px;
-            text-align: center;
-            line-height: 1;
-        }
-        .logo-footer img {
-            width: 70px;
-            height: 70px;
-            object-fit: contain;
-        }
-
-        .party-item {
-            display: flex;
-            flex-direction: column;
+            margin-top: 20px;
         }
 
         .party-name {
-            font-size: 11.5px;
-            font-weight: 700;
-            color: #111;
-            text-align: left;
-            direction: rtl;
-            margin-bottom: 1.5px;
-            padding-left: 2px;
-            line-height: 1.1;
+            font-size: 20px;
+            font-weight: 800;
+            color: #000000;
+            text-align: right;
+            white-space: nowrap;
+            line-height: 1;
         }
 
-        .bar-row {
+        .bar-area {
             display: flex;
             align-items: center;
-            height: 17px;
             direction: ltr;
+            height: 36px;
         }
 
         .bar-container {
-            flex-grow: 1;
             display: flex;
             align-items: center;
-            height: 100%;
+            height: 36px;
+            flex-shrink: 0;
         }
 
         .bar-women {
-            background-color: #702283;
+            background-color: #8A42FF;
             color: #ffffff;
-            font-weight: bold;
-            font-size: 11px;
+            font-weight: 800;
+            font-size: 20px;
             height: 100%;
             display: flex;
             align-items: center;
+            justify-content: flex-start;
+            padding-left: 10px;
+            box-sizing: border-box;
+        }
+
+        .bar-women.narrow {
             justify-content: center;
-            border-radius: 2.5px 0 0 2.5px;
+            padding-left: 0;
+            font-size: 16px;
         }
 
         .bar-men {
-            background-color: #bdbdbd;
+            background-color: #B5B4C4;
             height: 100%;
-            border-radius: 0 2.5px 2.5px 0;
         }
 
-        .bar-men.full {
-            border-radius: 2.5px;
-        }
-
-        .total-label {
-            font-weight: 900;
-            font-size: 12.5px;
+        .total-mandates {
+            font-weight: 800;
+            font-size: 20px;
             color: #000000;
-            margin-left: 6px;
+            margin-left: 10px;
             line-height: 1;
         }
 
-        .zero-label {
-            font-weight: 900;
-            font-size: 12.5px;
-            color: #000000;
-            margin-left: 2px;
-            line-height: 1;
-        }
-
-        .legend {
+        /* 5050 logo, floating below the whole chart */
+        .logo-container {
             display: flex;
             justify-content: center;
-            gap: 16px;
-            margin-top: 12px;
-            direction: rtl;
-            font-size: 11.5px;
-            font-weight: 600;
+            width: 100%;
+            margin-top: -20px;
+            z-index: 10;
         }
 
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
+        .logo-floating {
+            width: {{ logo_size }}px;
+            height: auto;
+            object-fit: contain;
         }
-
-        .legend-color {
-            width: 16px;
-            height: 10px;
-            border-radius: 2px;
-        }
-
-        .legend-color.women { background-color: #702283; }
-        .legend-color.men { background-color: #bdbdbd; }
     </style>
 </head>
 <body>
@@ -218,51 +152,29 @@
         <div class="header-area">
             <h1 class="header-title">{{ title_line1 }}</h1>
             <p class="header-subtitle">{{ title_line2 }}</p>
+            <div class="total-badge">סה"כ {{ total_women }} נשים</div>
         </div>
 
         <div class="chart-body">
-            {% if logo_data_uri %}
-            <div class="logo-overlay-box">
-                <div class="logo-overlay-text">סה"כ {{ total_women }} נשים</div>
-                <img class="logo-overlay-img" src="{{ logo_data_uri }}" alt="5050 לוגו"
-                     style="width: {{ logo_size }}px; height: {{ logo_size }}px;">
-            </div>
-            {% endif %}
             {% for row in rows %}
-            <div class="party-item"{% if row.total == 0 %} data-zero="true"{% endif %}>
-                <div class="party-name">{{ row.party }}</div>
-                <div class="bar-row">
-                    <div class="bar-container">
-                        {% if row.total > 0 %}
-                        {% if row.women > 0 %}
-                        <div class="bar-women" style="width: {{ row.women_pct }}%;">{{ row.women }}</div>
-                        {% endif %}
-                        <div class="bar-men{% if row.women == 0 %} full{% endif %}" style="width: {{ row.men_pct }}%;"></div>
-                        <div class="total-label">{{ row.total }}</div>
-                        {% else %}
-                        <span class="zero-label">0</span>
-                        {% endif %}
-                    </div>
+            <div class="party-name">{{ row.party }}</div>
+            <div class="bar-area">
+                <div class="bar-container" style="width: {{ row.total_px }}px;">
+                    {% if row.women > 0 %}
+                    <div class="bar-women{% if row.narrow %} narrow{% endif %}" style="width: {{ row.women_px }}px;">{{ row.women }}</div>
+                    {% endif %}
+                    {% if row.men > 0 %}
+                    <div class="bar-men" style="width: {{ row.men_px }}px;"></div>
+                    {% endif %}
                 </div>
+                <span class="total-mandates">{{ row.total }}</span>
             </div>
             {% endfor %}
         </div>
 
-        <div class="legend">
-            <div class="legend-item">
-                <div class="legend-color women"></div>
-                <span>כמות נשים צפויה</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color men"></div>
-                <span>כמות גברים צפויה</span>
-            </div>
-        </div>
-
-        {% if logo_footer_uri %}
-        <div class="logo-footer">
-            <div class="logo-footer-text">סה"כ {{ total_women }} נשים</div>
-            <img src="{{ logo_footer_uri }}" alt="5050 לוגו">
+        {% if logo_data_uri %}
+        <div class="logo-container">
+            <img class="logo-floating" src="{{ logo_data_uri }}" alt="5050 לוגו">
         </div>
         {% endif %}
     </div>

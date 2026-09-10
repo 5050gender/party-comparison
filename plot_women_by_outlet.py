@@ -179,7 +179,7 @@ ARC_BOTTOM_MARGIN = 45
 ARC_VIEWBOX_HEIGHT = 385 + ARC_TOP_MARGIN + ARC_BOTTOM_MARGIN
 
 ARC_TITLE_LINE1_POS = (ARC_CX, 14)  # matches the bar chart's two-line
-ARC_TITLE_LINE2_POS = (ARC_CX, 36)  # header (headline + poll/date subhead)
+ARC_TITLE_LINE2_POS = (ARC_CX, 46)  # header (headline + poll/date subhead)
 ARC_LOGO_SIZE = 90
 # Inline with the bloc-total text (which sits at roughly CY+28..CY+60), in
 # the blank horizontal gap between the two bloc boxes.
@@ -315,7 +315,7 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
         {"x1": w1x, "y1": w1y, "x2": ARC_CX - target_offset, "y2": target_y},
         {"x1": w2x, "y1": w2y, "x2": ARC_CX + target_offset, "y2": target_y},
     ]
-    total_label_pos = (ARC_CX, ARC_CY - 78)
+    total_label_pos = (ARC_CX, ARC_CY - 85)
 
     return {
         "cx": ARC_CX, "cy": ARC_CY,
@@ -419,33 +419,34 @@ def _render_html_to_square_jpg(html: str, out_path: Path, css_width: int,
     canvas.save(out_path, format="JPEG", quality=92)
 
 
-BAR_CHART_CSS_WIDTH = 400
-BAR_LOGO_SIZE = 95  # matches templates/bar_chart.html.j2's .logo-overlay-img
+BAR_CHART_CSS_WIDTH = 650
+BAR_NAME_COL_WIDTH = 180   # matches templates/bar_chart.html.j2's .chart-body
+                           # grid-template-columns first track (party name)
+BAR_AREA_COL_WIDTH = 420   # ...and the second track (the bar itself) -- the
+                           # pixel budget each row's bar is scaled to fit
+BAR_HEADROOM_MULTIPLIER = 1.3  # empty space reserved past the longest bar,
+                                # as a multiple of the rounded-up tick max --
+                                # smaller = longer bars (closer to filling
+                                # BAR_AREA_COL_WIDTH); 1.0 would let the
+                                # longest bar touch the column's edge
+BAR_LOGO_SIZE = 85  # matches templates/bar_chart.html.j2's .logo-floating
                      # size and the reference mockup's .logo-floating
 
 
 def render_bar_chart_html(title_line1: str, title_line2: str, rows: list,
                            total_women: int, out_path: Path) -> None:
-    """Renders bar_chart.html.j2. The logo+"סה"כ X נשים" label overlay is
-    positioned with a fixed CSS offset from the bottom of .chart-body
-    (matching the reference mockup exactly -- see the template's
-    .logo-overlay-box), landing in the blank space of the trailing
-    zero-seat rows every current poll has. Falls back to a plain footer
-    watermark (below the legend) only if a poll has no zero-seat rows at
-    all, since the fixed offset would otherwise land on top of real bars."""
+    """Renders bar_chart.html.j2: a fixed "סה"כ X נשים" badge under the
+    title, a two-column (party name | bar) grid of per-party rows, and the
+    5050 logo centered below everything -- matches the reference mockup's
+    layout exactly (see templates/bar_chart.html.j2's header comment)."""
     template = _JINJA_ENV.get_template("bar_chart.html.j2")
-    has_zero_row = any(r["total"] == 0 for r in rows)
-    logo_uri = _logo_data_uri()
-
-    logo_overlay_uri = logo_uri if (logo_uri and has_zero_row) else None
-    logo_footer_uri = logo_uri if (logo_uri and not has_zero_row) else None
-
     html = template.render(
         title_line1=title_line1, title_line2=title_line2, rows=rows,
-        has_zero_row=has_zero_row, total_women=total_women,
-        logo_data_uri=logo_overlay_uri,
-        logo_footer_uri=logo_footer_uri,
+        total_women=total_women,
+        logo_data_uri=_logo_data_uri(),
         logo_size=BAR_LOGO_SIZE,
+        name_col_width=BAR_NAME_COL_WIDTH,
+        bar_col_width=BAR_AREA_COL_WIDTH,
         **_heebo_data_uris(),
     )
     _render_html_to_square_jpg(html, out_path, css_width=BAR_CHART_CSS_WIDTH,
@@ -528,25 +529,43 @@ def load_mapping(mapping_csv: Path) -> dict:
 def render_bar_chart(parties: list, women: list, men: list, title_line1: str,
                       title_line2: str, out_path: Path) -> None:
     """Shared bar-chart renderer (bar_chart.html.j2), used for both the
-    per-outlet poll charts and the mean-poll (average-of-polls) chart."""
+    per-outlet poll charts and the mean-poll (average-of-polls) chart.
+    Each row's bar is drawn at a fixed pixels-per-mandate scale (matching
+    the reference mockup's literal "each mandate = 15px" bars) rather than
+    stretched to fill a shared row width -- a party's bar-container is only
+    as wide as its own seat total. The pixels-per-mandate value itself is
+    NOT hardcoded to the reference's 15px, though: it's derived from
+    BAR_AREA_COL_WIDTH so the single longest bar in THIS chart's data always
+    fits inside the template's fixed bar column, however many seats that
+    turns out to be for a given poll."""
     totals = [w + m for w, m in zip(women, men)]
 
-    # Extra headroom past the longest bar (same 1.8x used previously), so
-    # each unit of data maps to fewer pixels and the bars read visually
-    # shorter rather than always stretching to the row's full width.
+    # Headroom past the longest bar (BAR_HEADROOM_MULTIPLIER), so the
+    # tallest bar doesn't touch the far edge of the fixed bar column.
     max_total = max(totals) if totals else 0
     tick_max = max(5, (max_total // 5 + 1) * 5)
-    x_max = tick_max * 1.8
+    x_max = tick_max * BAR_HEADROOM_MULTIPLIER
+    px_per_seat = BAR_AREA_COL_WIDTH / x_max if x_max else 0
+
+    # A women-bar this narrow can't fit its own number left-aligned with
+    # padding at the normal font size -- center a smaller number instead
+    # (matches the reference mockup's "הציונות הדתית" row override).
+    NARROW_PX = 34
 
     rows = []
     for p, w, m, t in zip(parties, women, men, totals):
+        total_px = round(t * px_per_seat)
+        women_px = round(w * px_per_seat)
+        men_px = total_px - women_px  # avoid a rounding-gap between the two segments
         rows.append({
             "party": p,
             "women": w,
             "men": m,
             "total": t,
-            "women_pct": round(w / x_max * 100, 2),
-            "men_pct": round(m / x_max * 100, 2),
+            "total_px": total_px,
+            "women_px": women_px,
+            "men_px": men_px,
+            "narrow": women_px < NARROW_PX,
         })
 
     total_women = sum(women)
