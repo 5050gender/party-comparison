@@ -166,8 +166,8 @@ ARC_COLOR_COAL_MEN = "#003F88"
 ARC_CONTOUR_OPP_WOMEN = "#06A0C7"
 ARC_CONTOUR_COAL_WOMEN = "#002244"
 
-ARC_BLOC_CHANGE_LABEL = "גוש השינוי + משותפת"  # opposition + unmapped/gray seats
-ARC_BLOC_COALITION_LABEL = "גוש ימין + חרדים"  # coalition seats
+ARC_BLOC_CHANGE_LABEL = "גוש השינוי + המשותפת"  # opposition + unmapped/gray seats
+ARC_BLOC_COALITION_LABEL = "גוש ימין-חרדים"  # coalition seats
 
 # Canvas: extend the design's own viewBox with a top margin (title) and
 # bottom margin (logo), without moving any of the arc's own coordinates.

@@ -18,6 +18,15 @@ import csv
 import sys
 from pathlib import Path
 
+# On Windows, the console's default codepage (cp1252 etc.) can't encode the
+# Hebrew text this project routinely prints/writes. Force stdout/stderr to
+# UTF-8 so that doesn't crash with UnicodeEncodeError.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding='utf-8')
+    except (AttributeError, ValueError):
+        pass
+
 BAR = "templates/bar_chart.html.j2"
 ARC = "templates/arc_chart.html.j2"
 PY = "plot_women_by_outlet.py"

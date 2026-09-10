@@ -24,8 +24,18 @@ code, just pointed at made-up numbers instead of a workbook, and stopped
 short of the final screenshot-to-JPG step.
 """
 import importlib.util
+import sys
 import webbrowser
 from pathlib import Path
+
+# On Windows, the console's default codepage (cp1252 etc.) can't encode the
+# Hebrew text this project routinely prints/writes. Force stdout/stderr to
+# UTF-8 so that doesn't crash with UnicodeEncodeError.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding='utf-8')
+    except (AttributeError, ValueError):
+        pass
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 MAIN_SCRIPT = SCRIPT_DIR / "plot_women_by_outlet.py"
