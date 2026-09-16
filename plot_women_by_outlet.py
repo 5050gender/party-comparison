@@ -133,6 +133,19 @@ MAPPING_COL_GROUP = "גוש"
 OPPOSITION_GROUP_NAME = "אופוזיציה"
 COALITION_GROUP_NAME = "קואליציה"
 
+# Shortened party names for chart display only -- the workbook/mapping.csv
+# keep using the full official name everywhere else (candidate lists, bloc
+# lookups, etc.); only what's actually drawn on a chart uses the shorter
+# form, so this must never be applied before a mapping.get(party) lookup.
+CHART_DISPLAY_NAME_OVERRIDES = {
+    "ביחד (בנט-לפיד)": "ביחד",
+    "המילואימניקים-הכלכלית": "המילואימניקים",
+}
+
+
+def _chart_display_name(party: str) -> str:
+    return CHART_DISPLAY_NAME_OVERRIDES.get(party, party)
+
 # --- Email drafts (--create-email-drafts) ---------------------------------
 # Creates a Gmail DRAFT (never sends) per outlet, summarizing that poll and
 # attaching its bar + bloc charts. Uses IMAP APPEND to Gmail's Drafts folder,
@@ -158,32 +171,62 @@ ARC_CX, ARC_CY = 310, 318
 ARC_RO, ARC_RI = 252, 148  # outer / inner radius
 ARC_TOTAL_SEATS = 120
 
-ARC_COLOR_GRAY = "#8890a8"        # unmapped/other parties
-ARC_COLOR_OPP_MEN = "#0A85ED"
-ARC_COLOR_OPP_WOMEN = "#08C8F9"
-ARC_COLOR_COAL_WOMEN = "#0061BF"
-ARC_COLOR_COAL_MEN = "#003F88"
-ARC_CONTOUR_OPP_WOMEN = "#06A0C7"
-ARC_CONTOUR_COAL_WOMEN = "#002244"
+ARC_COLOR_GRAY = "#74829e"        # unmapped/other parties
+ARC_COLOR_OPP_MEN = "#7ecaff"
+ARC_COLOR_OPP_WOMEN = "#00c7f2"
+ARC_COLOR_COAL_WOMEN = "#a71d2a"
+ARC_COLOR_COAL_MEN = "#ff6384"
+ARC_CONTOUR_OPP_WOMEN = "#008ba8"
+ARC_CONTOUR_COAL_WOMEN = "#5e0b14"
 
-ARC_BLOC_CHANGE_LABEL = "גוש השינוי + המשותפת"  # opposition + unmapped/gray seats
-ARC_BLOC_COALITION_LABEL = "גוש ימין-חרדים"  # coalition seats
+ARC_BLOC_CHANGE_LABEL = "שינוי+משותפת"  # opposition + unmapped/gray seats
+ARC_BLOC_COALITION_LABEL = "ימין+חרדים"  # coalition seats
+ARC_BLOC_RECT_WIDTH = 110
+ARC_BLOC_CHANGE_LABEL_FONT_SIZE = 16
+ARC_BLOC_COALITION_LABEL_FONT_SIZE = 17
 
-# Canvas: extend the design's own viewBox with a top margin (title) and
-# bottom margin (logo), without moving any of the arc's own coordinates.
-ARC_VIEWBOX_MIN_X = -60
-ARC_VIEWBOX_MIN_Y = -55
-ARC_VIEWBOX_WIDTH = 720
-ARC_TOP_MARGIN = 55
-ARC_BOTTOM_MARGIN = 45
-ARC_VIEWBOX_HEIGHT = 385 + ARC_TOP_MARGIN + ARC_BOTTOM_MARGIN
+# Canvas: the title now lives in an HTML header above the <svg> (matching
+# the bar chart's header), not inside the SVG itself, so the viewBox only
+# needs to frame the arc + bloc boxes + top callout -- no top title margin.
+# Tightened horizontally to hug the actual content (the bloc-total boxes are
+# the widest thing, at cx +/- mid_r +/- half the box width) plus a small
+# breathing-room margin, rather than the original design's much wider canvas
+# -- that wide canvas left a lot of dead white space on both sides once the
+# chart is square-padded into the final social-post JPG.
+_ARC_MID_R = (ARC_RO + ARC_RI) / 2
+ARC_CONTENT_MARGIN_X = 25
+ARC_VIEWBOX_MIN_X = ARC_CX - _ARC_MID_R - ARC_BLOC_RECT_WIDTH / 2 - ARC_CONTENT_MARGIN_X
+ARC_VIEWBOX_WIDTH = 2 * (_ARC_MID_R + ARC_BLOC_RECT_WIDTH / 2 + ARC_CONTENT_MARGIN_X)
+ARC_VIEWBOX_MIN_Y = 0
+ARC_VIEWBOX_HEIGHT = 420
 
-ARC_TITLE_LINE1_POS = (ARC_CX, 14)  # matches the bar chart's two-line
-ARC_TITLE_LINE2_POS = (ARC_CX, 46)  # header (headline + poll/date subhead)
-ARC_LOGO_SIZE = 90
-# Inline with the bloc-total text (which sits at roughly CY+28..CY+60), in
-# the blank horizontal gap between the two bloc boxes.
-ARC_LOGO_POS = (ARC_CX - ARC_LOGO_SIZE / 2, ARC_CY)
+ARC_LOGO_WIDTH = 110
+ARC_LOGO_HEIGHT = 65
+ARC_LOGO_POS = (ARC_CX - ARC_LOGO_WIDTH / 2, ARC_CY + 10)
+
+# Gap (px) between the outlet logo and the title/subtitle text column in the
+# header's .header-text-row -- must match that rule's CSS `gap` in
+# arc_chart.html.j2 (and bar_chart.html.j2's, same value), since
+# render_arc_chart_html() also uses it to widen the render viewport so the
+# title doesn't get squeezed into wrapping (see there).
+ARC_HEADER_LOGO_GAP = 15
+
+# Geometry for the top arrows + "X חברות כנסת" callout. Each arrow starts
+# at its own women-segment's label position (opp_women / coal_women -- same
+# angle the "X נשים" number is drawn at, see build_arc_chart_data), so it
+# always points from the actual colored segment it's labeling, not a fixed
+# angle -- the reference design's own hardcoded angles only happened to line
+# up for its particular sample data and land inside the wrong segment for a
+# real poll's data (verified: with the current workbook's seat split, the
+# reference's fixed "right arrow" angle of 93 falls inside the cyan
+# opp_women segment, not the dark-red coal_women segment it's meant to
+# start from). Only the arrows' *target* end (pointing at the total-women
+# callout) is fixed/data-independent, matching the approved design.
+ARC_ARROW_LEFT_TARGET_X_OFFSET = -15
+ARC_ARROW_RIGHT_TARGET_X_OFFSET = 5
+ARC_ARROW_TARGET_Y_OFFSET = -97
+ARC_TOTAL_LABEL_Y_OFFSET = -78
+ARC_TOTAL_LABEL_FONT_SIZE = 17
 
 
 def _arc_rad(d):
@@ -219,28 +262,45 @@ def _arc_split_label_lines(name: str) -> list:
 
 
 def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
-                          coal_men: int, gray_seats: int, gray_label: str,
+                          coal_men: int, gray_men: int, gray_women: int,
+                          gray_label: str,
                           total_women_label: str, title_line1: str,
-                          title_line2: str, logo_data_uri: str) -> dict:
+                          title_line2: str, logo_data_uri: str,
+                          outlet_name: str = None,
+                          poll_date_str: str = None) -> dict:
     """Compute every geometric value the arc_chart.html.j2 template needs:
     segment paths/colors/labels, separator lines, the two bloc totals at the
-    base, the gray/unmapped segment's label, and the top arrows + total-women
-    callout. All angles are derived from the seat counts as a share of the
-    total seats actually accounted for across the 5 segments -- not a fixed
-    120, since some polls' seat counts sum to less than 120 (parties below
-    the electoral threshold that this workbook doesn't reallocate), which
-    would otherwise leave the arc visibly short of a full half-circle. Pass
-    real per-bloc, per-gender seat totals and this reproduces the approved
-    design for any dataset."""
+    base, the gray/unmapped segments' labels, and the top arrows + total-
+    women callout. All angles are derived from the seat counts as a share of
+    the total seats actually accounted for across the segments -- not a
+    fixed 120, since some polls' seat counts sum to less than 120 (parties
+    below the electoral threshold that this workbook doesn't reallocate),
+    which would otherwise leave the arc visibly short of a full half-circle.
+    Pass real per-bloc, per-gender seat totals and this reproduces the
+    approved design for any dataset.
+
+    Unmapped/"gray" parties (missing from mapping.csv, or mapped to
+    something other than the opposition/coalition group) are gender-split
+    the same way the opposition and coalition blocs are: gray_men draws as
+    one peripheral segment at the very start of the arc (bottom-left, next
+    to the "שינוי+משותפת" total), and gray_women draws as a second, separate
+    gray segment inserted between opp_women and coal_women -- right at the
+    seam between the two blocs -- instead of every unmapped party's seats
+    (men and women together) being folded into one single gray blob."""
     segs = [
-        {"n": gray_seats, "fill": ARC_COLOR_GRAY, "bloc": "gray"},
-        {"n": opp_men, "fill": ARC_COLOR_OPP_MEN, "bloc": "opposition"},
-        {"n": opp_women, "fill": ARC_COLOR_OPP_WOMEN, "bloc": "opposition",
+        {"key": "gray_men", "n": gray_men, "fill": ARC_COLOR_GRAY, "bloc": "gray",
+         "label": gray_label},
+        {"key": "opp_men", "n": opp_men, "fill": ARC_COLOR_OPP_MEN, "bloc": "opposition"},
+        {"key": "opp_women", "n": opp_women, "fill": ARC_COLOR_OPP_WOMEN, "bloc": "opposition",
          "num": str(opp_women), "sub": "נשים", "contour": ARC_CONTOUR_OPP_WOMEN},
-        {"n": coal_women, "fill": ARC_COLOR_COAL_WOMEN, "bloc": "coalition",
-         "num": str(coal_women), "sub": "נשים", "contour": ARC_CONTOUR_COAL_WOMEN},
-        {"n": coal_men, "fill": ARC_COLOR_COAL_MEN, "bloc": "coalition"},
+        {"key": "gray_women", "n": gray_women, "fill": ARC_COLOR_GRAY,
+         "bloc": "boundary"},
+        {"key": "coal_women", "n": coal_women, "fill": ARC_COLOR_COAL_WOMEN, "bloc": "coalition",
+         "num": str(coal_women), "sub": "נשים", "contour": ARC_CONTOUR_COAL_WOMEN,
+         "label_shift": 2.5},
+        {"key": "coal_men", "n": coal_men, "fill": ARC_COLOR_COAL_MEN, "bloc": "coalition"},
     ]
+    segs_by_key = {s["key"]: s for s in segs}
 
     total_seats = sum(s["n"] for s in segs) or ARC_TOTAL_SEATS  # guard div-by-0
 
@@ -258,7 +318,7 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
             continue
         entry = {"d": _arc_clean_seg_path(s["a1"], s["a2"]), "fill": s["fill"]}
         if s.get("num"):
-            lx, ly = _arc_pt(mid_r, (s["a1"] + s["a2"]) / 2)
+            lx, ly = _arc_pt(mid_r, (s["a1"] + s["a2"]) / 2 + s.get("label_shift", 0))
             entry["num"] = s["num"]
             entry["sub"] = s["sub"]
             entry["num_pos"] = (lx, ly + 4)
@@ -279,61 +339,79 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
             "dashed": a["bloc"] == b["bloc"],
         })
 
-    # Gray/unmapped segment's label, centered in its own arc slice.
-    gray_label_lines = []
-    gray_label_pos = None
-    if gray_seats > 0:
-        gray_seg = segs[0]
-        glx, gly = _arc_pt(mid_r, (gray_seg["a1"] + gray_seg["a2"]) / 2)
-        lines = _arc_split_label_lines(gray_label)
-        if len(lines) > 1:
-            gray_label_lines = [{"text": t, "y": gly - 4 + i * 13} for i, t in enumerate(lines)]
-        else:
-            gray_label_lines = [{"text": lines[0], "y": gly + 4}]
-        gray_label_pos = (glx, gly)
+    # Gray/unmapped segments' labels (small 1-2 line white text), each
+    # centered in its own arc slice -- every segment with a non-empty
+    # "label" gets one (currently just gray_main; gray_boundary is
+    # deliberately left unlabeled since it's usually too narrow a sliver
+    # for even one word of text to fit legibly).
+    gray_labels = []
+    for s in segs:
+        if s["n"] > 0 and s.get("label"):
+            glx, gly = _arc_pt(mid_r, (s["a1"] + s["a2"]) / 2 + s.get("label_shift", 0))
+            lines = _arc_split_label_lines(s["label"])
+            if len(lines) > 1:
+                line_entries = [{"text": t, "y": gly - 4 + i * 13} for i, t in enumerate(lines)]
+            else:
+                line_entries = [{"text": lines[0], "y": gly + 4}]
+            gray_labels.append({"x": glx, "lines": line_entries})
 
-    # The unmapped/"gray" parties are shown as a visually distinct color in
-    # the arc, but folded into the change/opposition bloc's total below --
-    # this matches the approved design exactly (verified against real data).
-    change_total = opp_women + opp_men + gray_seats
+    # The unmapped/"gray" parties (both the main gray segment and the
+    # between-the-blocs boundary segment) are shown as a visually distinct
+    # color in the arc, but folded into the change/opposition bloc's total
+    # below -- this matches the approved design exactly (verified against
+    # real data).
+    change_total = opp_women + opp_men + gray_men + gray_women
     coalition_total = coal_women + coal_men
 
     bloc_rects = [
-        {"cx": ARC_CX - mid_r, "label": ARC_BLOC_CHANGE_LABEL, "total": change_total},
-        {"cx": ARC_CX + mid_r, "label": ARC_BLOC_COALITION_LABEL, "total": coalition_total},
+        {"cx": ARC_CX - mid_r, "label": ARC_BLOC_CHANGE_LABEL, "total": change_total,
+         "width": ARC_BLOC_RECT_WIDTH, "label_font_size": ARC_BLOC_CHANGE_LABEL_FONT_SIZE},
+        {"cx": ARC_CX + mid_r, "label": ARC_BLOC_COALITION_LABEL, "total": coalition_total,
+         "width": ARC_BLOC_RECT_WIDTH, "label_font_size": ARC_BLOC_COALITION_LABEL_FONT_SIZE},
     ]
 
-    # Fixed symmetric top arrows + total-women callout (matches the design's
-    # geometry exactly -- always centered at the arc's apex, independent of
-    # the actual opposition/coalition seat split).
-    angle_offset = 16.5
-    w1x, w1y = _arc_pt(ARC_RI - 2, 90 - angle_offset)
-    w2x, w2y = _arc_pt(ARC_RI - 2, 90 + angle_offset)
-    target_offset = 20
-    target_y = ARC_CY - 97
+    # Top arrows + total-women callout. Each arrow starts at its own
+    # women-segment's actual label angle (opp_women/cyan, coal_women/dark-
+    # red -- the same angle their "X נשים" number is drawn at), so it always
+    # points from the segment it's labeling, whatever that segment's real
+    # position turns out to be for this dataset. Only the target end (the
+    # total-women callout above the arc's apex) is fixed/data-independent,
+    # matching the approved design.
+    opp_women_seg, coal_women_seg = segs_by_key["opp_women"], segs_by_key["coal_women"]
+    opp_women_angle = ((opp_women_seg["a1"] + opp_women_seg["a2"]) / 2
+                        + opp_women_seg.get("label_shift", 0))
+    coal_women_angle = ((coal_women_seg["a1"] + coal_women_seg["a2"]) / 2
+                         + coal_women_seg.get("label_shift", 0))
+    w1x, w1y = _arc_pt(ARC_RI - 2, opp_women_angle)
+    w2x, w2y = _arc_pt(ARC_RI - 2, coal_women_angle)
+    target_y = ARC_CY + ARC_ARROW_TARGET_Y_OFFSET
     arrows = [
-        {"x1": w1x, "y1": w1y, "x2": ARC_CX - target_offset, "y2": target_y},
-        {"x1": w2x, "y1": w2y, "x2": ARC_CX + target_offset, "y2": target_y},
+        {"x1": w1x, "y1": w1y, "x2": ARC_CX + ARC_ARROW_LEFT_TARGET_X_OFFSET, "y2": target_y},
+        {"x1": w2x, "y1": w2y, "x2": ARC_CX + ARC_ARROW_RIGHT_TARGET_X_OFFSET, "y2": target_y},
     ]
-    total_label_pos = (ARC_CX, ARC_CY - 85)
+    total_label_pos = (ARC_CX, ARC_CY + ARC_TOTAL_LABEL_Y_OFFSET)
 
     return {
         "cx": ARC_CX, "cy": ARC_CY,
         "segments": segments_out,
         "separators": separators,
-        "gray_label_lines": gray_label_lines,
-        "gray_label_pos": gray_label_pos,
+        "gray_labels": gray_labels,
         "bloc_rects": bloc_rects,
         "arrows": arrows,
         "total_label_text": total_women_label,
         "total_label_pos": total_label_pos,
+        "total_label_font_size": ARC_TOTAL_LABEL_FONT_SIZE,
         "title_line1": title_line1,
-        "title_line1_pos": ARC_TITLE_LINE1_POS,
         "title_line2": title_line2,
-        "title_line2_pos": ARC_TITLE_LINE2_POS,
+        "outlet_name": outlet_name,
+        "poll_date_str": poll_date_str,
+        "outlet_logo_data_uri": _outlet_logo_data_uri(outlet_name) if outlet_name else None,
+        "outlet_logo_width": ARC_LOGO_WIDTH,
+        "outlet_logo_height": ARC_LOGO_HEIGHT,
         "logo_data_uri": logo_data_uri,
         "logo_pos": ARC_LOGO_POS,
-        "logo_size": ARC_LOGO_SIZE,
+        "logo_width": ARC_LOGO_WIDTH,
+        "logo_height": ARC_LOGO_HEIGHT,
         "view_box": f"{ARC_VIEWBOX_MIN_X} {ARC_VIEWBOX_MIN_Y} {ARC_VIEWBOX_WIDTH} {ARC_VIEWBOX_HEIGHT}",
         "svg_width": ARC_VIEWBOX_WIDTH,
         "svg_height": ARC_VIEWBOX_HEIGHT,
@@ -363,6 +441,36 @@ def _logo_data_uri():
     print(f"  warning: logo file not found at {LOGO_PATH}, charts will be "
           f"generated without it")
     return None
+
+
+OUTLET_LOGOS_DIR = TEMPLATES_DIR / "assets" / "outlet_logos"
+
+# Maps a poll's outlet name (exactly as it appears in COL_OUTLET) to a small
+# logo image file inside templates/assets/outlet_logos/, shown inline next
+# to the outlet's name in each chart's header subtitle. An outlet with no
+# entry here (or whose file is missing) just shows its name as plain text --
+# same as every chart looked before this feature existed -- so add entries
+# here incrementally as logo files are supplied, no other outlet is affected.
+OUTLET_LOGO_FILES = {
+    "ערוץ 14": "channel_14.png",
+    "חדשות 12": "channel_12.png",
+    "חדשות 13": "channel_13.png",
+    "כאן חדשות": "kan_11.png",
+    "i24 news": "i24_news.png",
+}
+
+
+def _outlet_logo_data_uri(outlet: str):
+    filename = OUTLET_LOGO_FILES.get(outlet)
+    if not filename:
+        return None
+    path = OUTLET_LOGOS_DIR / filename
+    if not path.exists():
+        print(f"  warning: outlet logo file not found for \"{outlet}\": "
+              f"{path} -- showing the outlet name without it")
+        return None
+    mime = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
+    return _data_uri(path, mime)
 
 
 def _render_html_to_square_jpg(html: str, out_path: Path, css_width: int,
@@ -400,7 +508,15 @@ def _render_html_to_square_jpg(html: str, out_path: Path, css_width: int,
             # relative --output-dir (e.g. "graphs/") and on Windows, where
             # a bare "file://<path>" is not a valid URL.
             page.goto(html_path.resolve().as_uri())
-            page.wait_for_timeout(150)  # let the embedded font finish applying
+            # Wait for the embedded @font-face (Heebo) to actually finish
+            # loading before measuring/screenshotting -- a fixed sleep here
+            # was a race: on a slow load, text metrics/wrapping would still
+            # briefly reflect the fallback system font (which can be
+            # noticeably wider for bold Hebrew), occasionally causing a
+            # headline to wrap onto an extra line only sometimes, for the
+            # exact same input.
+            page.evaluate("document.fonts.ready")
+            page.wait_for_timeout(30)  # settle any final layout/paint
             if css_height is None:
                 measured = page.evaluate("document.documentElement.scrollHeight")
                 page.set_viewport_size({"width": css_width, "height": measured})
@@ -419,26 +535,46 @@ def _render_html_to_square_jpg(html: str, out_path: Path, css_width: int,
     canvas.save(out_path, format="JPEG", quality=92)
 
 
-BAR_CHART_CSS_WIDTH = 650
-BAR_NAME_COL_WIDTH = 180   # matches templates/bar_chart.html.j2's .chart-body
+BAR_CHART_CSS_WIDTH = 830  # widened (from the reference mockup's 695) so the
+                            # chart's own width:height ratio is closer to 1:1
+                            # -- less dead white space once _render_html_to_
+                            # square_jpg pads it out to a square social post
+BAR_NAME_COL_WIDTH = 200   # matches templates/bar_chart.html.j2's .chart-body
                            # grid-template-columns first track (party name)
-BAR_AREA_COL_WIDTH = 420   # ...and the second track (the bar itself) -- the
+BAR_AREA_COL_WIDTH = 590   # ...and the second track (the bar itself) -- the
                            # pixel budget each row's bar is scaled to fit
 BAR_HEADROOM_MULTIPLIER = 1.3  # empty space reserved past the longest bar,
                                 # as a multiple of the rounded-up tick max --
                                 # smaller = longer bars (closer to filling
                                 # BAR_AREA_COL_WIDTH); 1.0 would let the
                                 # longest bar touch the column's edge
-BAR_LOGO_SIZE = 85  # matches templates/bar_chart.html.j2's .logo-floating
-                     # size and the reference mockup's .logo-floating
+BAR_LOGO_SIZE = 110  # matches templates/bar_chart.html.j2's .logo-floating
+                      # size and the reference mockup's .logo-floating
+
+# A women-bar this narrow can't fit its own number left-aligned with padding
+# at the normal font size -- two tiers, matching the reference mockup: a
+# moderately-narrow bar (e.g. the הליכוד row) just centers the number with
+# no padding at the normal size; a very-narrow bar (e.g. the רע"מ row) also
+# shrinks the font.
+BAR_NARROW_CENTER_PX = 40
+BAR_NARROW_FONT_PX = 20
 
 
 def render_bar_chart_html(title_line1: str, title_line2: str, rows: list,
-                           total_women: int, out_path: Path) -> None:
+                           total_women: int, out_path: Path,
+                           outlet_name: str = None,
+                           poll_date_str: str = None) -> None:
     """Renders bar_chart.html.j2: a fixed "סה"כ X נשים" badge under the
     title, a two-column (party name | bar) grid of per-party rows, and the
     5050 logo centered below everything -- matches the reference mockup's
-    layout exactly (see templates/bar_chart.html.j2's header comment)."""
+    layout exactly (see templates/bar_chart.html.j2's header comment).
+
+    outlet_name/poll_date_str (per-outlet charts only -- the mean-poll chart
+    passes neither) let the template rebuild the "לפי סקר X | תאריך: Y"
+    subtitle itself instead of taking title_line2 as opaque text, so it can
+    drop the outlet's logo (see OUTLET_LOGO_FILES) inline right next to the
+    outlet's name when one is on file; with no entry the subtitle renders
+    identically to plain title_line2 text."""
     template = _JINJA_ENV.get_template("bar_chart.html.j2")
     html = template.render(
         title_line1=title_line1, title_line2=title_line2, rows=rows,
@@ -447,6 +583,10 @@ def render_bar_chart_html(title_line1: str, title_line2: str, rows: list,
         logo_size=BAR_LOGO_SIZE,
         name_col_width=BAR_NAME_COL_WIDTH,
         bar_col_width=BAR_AREA_COL_WIDTH,
+        outlet_name=outlet_name,
+        poll_date_str=poll_date_str,
+        outlet_logo_data_uri=_outlet_logo_data_uri(outlet_name) if outlet_name else None,
+        outlet_logo_size=BAR_LOGO_SIZE,
         **_heebo_data_uris(),
     )
     _render_html_to_square_jpg(html, out_path, css_width=BAR_CHART_CSS_WIDTH,
@@ -456,8 +596,26 @@ def render_bar_chart_html(title_line1: str, title_line2: str, rows: list,
 def render_arc_chart_html(arc_data: dict, out_path: Path) -> None:
     template = _JINJA_ENV.get_template("arc_chart.html.j2")
     html = template.render(**arc_data, **_heebo_data_uris())
-    _render_html_to_square_jpg(html, out_path, css_width=arc_data["svg_width"],
-                                css_height=arc_data["svg_height"], anchor="center")
+    # The header (title/subtitle) now sits above the <svg> as ordinary HTML,
+    # not inside the SVG's own viewBox, so the page's total rendered height
+    # is taller than svg_height alone -- auto-fit to actual content height
+    # (css_height=None) instead of assuming it equals the SVG's height.
+    #
+    # The page renders at a fixed viewport width (css_width below); normally
+    # that's just the SVG's own width (svg_width), which is exactly wide
+    # enough for the title text alone. When there's an outlet logo, the
+    # header is now a row of [logo, text] (see .header-text-row), so the
+    # text column loses (outlet_logo_width + its gap) of width to the logo
+    # -- without extra room here, that's enough to force the title onto a
+    # second line. Widen the render viewport by that same amount so the
+    # text column keeps the same width it always had; the (now narrower,
+    # relatively) SVG still ends up centered under it via chart-wrapper's
+    # align-items: center.
+    css_width = arc_data["svg_width"]
+    if arc_data.get("outlet_logo_data_uri"):
+        css_width += arc_data["outlet_logo_width"] + ARC_HEADER_LOGO_GAP
+    _render_html_to_square_jpg(html, out_path, css_width=css_width,
+                                css_height=None, anchor="center")
 
 
 def find_latest_workbook(input_dir: Path) -> Path:
@@ -527,7 +685,8 @@ def load_mapping(mapping_csv: Path) -> dict:
 
 
 def render_bar_chart(parties: list, women: list, men: list, title_line1: str,
-                      title_line2: str, out_path: Path) -> None:
+                      title_line2: str, out_path: Path,
+                      outlet_name: str = None, poll_date_str: str = None) -> None:
     """Shared bar-chart renderer (bar_chart.html.j2), used for both the
     per-outlet poll charts and the mean-poll (average-of-polls) chart.
     Each row's bar is drawn at a fixed pixels-per-mandate scale (matching
@@ -547,11 +706,6 @@ def render_bar_chart(parties: list, women: list, men: list, title_line1: str,
     x_max = tick_max * BAR_HEADROOM_MULTIPLIER
     px_per_seat = BAR_AREA_COL_WIDTH / x_max if x_max else 0
 
-    # A women-bar this narrow can't fit its own number left-aligned with
-    # padding at the normal font size -- center a smaller number instead
-    # (matches the reference mockup's "הציונות הדתית" row override).
-    NARROW_PX = 34
-
     rows = []
     for p, w, m, t in zip(parties, women, men, totals):
         total_px = round(t * px_per_seat)
@@ -565,11 +719,13 @@ def render_bar_chart(parties: list, women: list, men: list, title_line1: str,
             "total_px": total_px,
             "women_px": women_px,
             "men_px": men_px,
-            "narrow": women_px < NARROW_PX,
+            "narrow": women_px < BAR_NARROW_CENTER_PX,
+            "narrow_font": women_px < BAR_NARROW_FONT_PX,
         })
 
     total_women = sum(women)
-    render_bar_chart_html(title_line1, title_line2, rows, total_women, out_path)
+    render_bar_chart_html(title_line1, title_line2, rows, total_women, out_path,
+                          outlet_name=outlet_name, poll_date_str=poll_date_str)
 
 
 def plot_poll(df_poll: pd.DataFrame, outlet: str, date_raw, out_path: Path) -> None:
@@ -580,14 +736,15 @@ def plot_poll(df_poll: pd.DataFrame, outlet: str, date_raw, out_path: Path) -> N
         [COL_WOMEN, COL_MEN], ascending=[False, False], kind="stable"
     )
 
-    parties = df_sorted[COL_PARTY].tolist()
+    parties = [_chart_display_name(p) for p in df_sorted[COL_PARTY].tolist()]
     women = df_sorted[COL_WOMEN].tolist()
     men = df_sorted[COL_MEN].tolist()
 
     title_line1 = build_bar_headline()
     title_line2 = build_bar_subheadline(outlet, date_raw)
 
-    render_bar_chart(parties, women, men, title_line1, title_line2, out_path)
+    render_bar_chart(parties, women, men, title_line1, title_line2, out_path,
+                      outlet_name=outlet, poll_date_str=format_date_short(date_raw))
 
 
 def plot_mean_poll(df_mean: pd.DataFrame, out_path: Path) -> None:
@@ -600,7 +757,7 @@ def plot_mean_poll(df_mean: pd.DataFrame, out_path: Path) -> None:
         [COL_WOMEN, COL_MEN], ascending=[False, False], kind="stable"
     )
 
-    parties = df_sorted[COL_PARTY].tolist()
+    parties = [_chart_display_name(p) for p in df_sorted[COL_PARTY].tolist()]
     women = df_sorted[COL_WOMEN].tolist()
     men = df_sorted[COL_MEN].tolist()
 
@@ -611,14 +768,16 @@ def plot_mean_poll(df_mean: pd.DataFrame, out_path: Path) -> None:
 
 
 def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_line1: str,
-                       title_line2: str, out_path: Path, skip_label: str) -> bool:
+                       title_line2: str, out_path: Path, skip_label: str,
+                       outlet_name: str = None, poll_date_str: str = None) -> bool:
     """Shared arc (half-donut) bloc-chart renderer (arc_chart.html.j2), used
     for both per-outlet polls and the mean-poll aggregate. Splits seats into
     opposition/coalition men+women; any party whose mapped group is not
     exactly OPPOSITION_GROUP_NAME/COALITION_GROUP_NAME (missing from
-    mapping.csv, or mapped to some other/self-referential group) is drawn as
-    a single gray "unmapped" arc segment with no gender split, and its seats
-    are folded into the change bloc's ("גוש השינוי") total. Returns False
+    mapping.csv, or mapped to some other/self-referential group) is gender-
+    split into two gray "unmapped" segments the same way the opposition and
+    coalition blocs are (see build_arc_chart_data), and its seats are folded
+    into the change bloc's ("גוש השינוי") total either way. Returns False
     (writing nothing) if there are 0 expected women overall."""
     total_women = int(df[COL_WOMEN].sum())
 
@@ -626,7 +785,8 @@ def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_line1: str,
         print(f"  skipping pie chart for {skip_label}: 0 expected women")
         return False
 
-    opp_women = opp_men = coal_women = coal_men = gray_seats = 0
+    opp_women = opp_men = coal_women = coal_men = 0
+    gray_men = gray_women = 0
     gray_parties = []
     for _, row in df.iterrows():
         party = row[COL_PARTY]
@@ -639,13 +799,15 @@ def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_line1: str,
             coal_women += w
             coal_men += m
         else:
-            gray_seats += w + m
+            gray_men += m
+            gray_women += w
             if w + m > 0:
-                gray_parties.append(party)
+                gray_parties.append(_chart_display_name(party))
 
     if gray_parties:
-        print(f"  note: shown as a separate (gray) segment, folded into "
-              f"\"{ARC_BLOC_CHANGE_LABEL}\": {', '.join(gray_parties)}")
+        print(f"  note: unmapped, gender-split into two gray segments (men "
+              f"at the start of the arc, women between the two blocs), "
+              f"folded into \"{ARC_BLOC_CHANGE_LABEL}\": {', '.join(gray_parties)}")
 
     gray_label = " / ".join(gray_parties) if gray_parties else ""
     total_label_text = f"{total_women} חברות כנסת"
@@ -653,10 +815,11 @@ def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_line1: str,
     arc_data = build_arc_chart_data(
         opp_women=opp_women, opp_men=opp_men,
         coal_women=coal_women, coal_men=coal_men,
-        gray_seats=gray_seats, gray_label=gray_label,
+        gray_men=gray_men, gray_women=gray_women, gray_label=gray_label,
         total_women_label=total_label_text,
         title_line1=title_line1, title_line2=title_line2,
         logo_data_uri=_logo_data_uri(),
+        outlet_name=outlet_name, poll_date_str=poll_date_str,
     )
     render_arc_chart_html(arc_data, out_path)
     return True
@@ -672,7 +835,8 @@ def plot_pie_poll(df_poll: pd.DataFrame, outlet: str, date_raw, mapping: dict,
     title_line1 = build_bar_headline()
     title_line2 = build_bar_subheadline(outlet, date_raw)
     return render_bloc_chart(df_poll, mapping, title_line1, title_line2, out_path,
-                              skip_label=f"{outlet} ({date_str})")
+                              skip_label=f"{outlet} ({date_str})",
+                              outlet_name=outlet, poll_date_str=format_date_short(date_raw))
 
 
 def plot_mean_pie_poll(df_mean: pd.DataFrame, mapping: dict, out_path: Path) -> bool:

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="he">
+<html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <style>
@@ -22,26 +22,88 @@
     min-height: 100vh;
     font-family: 'Heebo', sans-serif;
   }
+
+  .chart-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .header-area {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .header-title {
+    font-size: 34px;
+    font-weight: 900;
+    margin: 0;
+    line-height: 1.15;
+    color: #000;
+  }
+
+  .header-subtitle {
+    font-size: 24px;
+    color: #000000;
+    font-weight: 800;
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  /* Row pairing the outlet's logo with the title+subtitle text block (only
+     used when outlet_name is set). The logo is the row's first element, so
+     in this RTL layout it lands on the right-hand side, right next to the
+     text -- and align-items: center on the row vertically centers the logo
+     against the whole text block, so its middle sits between the title and
+     subtitle lines rather than beside just one of them. Sized to match the
+     5050 logo (see outlet_logo_width/height). */
+  .header-text-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+  }
+
+  .header-text-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .outlet-logo {
+    width: {{ outlet_logo_width }}px;
+    height: auto;
+    object-fit: contain;
+  }
 </style>
 </head>
 <body>
+
+<div class="chart-wrapper">
+    {% if title_line1 or title_line2 or outlet_name %}
+    <div class="header-area">
+        <div class="header-text-row">
+            {% if outlet_logo_data_uri %}<img class="outlet-logo" src="{{ outlet_logo_data_uri }}" alt="{{ outlet_name }}">{% endif %}
+            <div class="header-text-col">
+                {% if title_line1 %}<h1 class="header-title">{{ title_line1 }}</h1>{% endif %}
+                {% if outlet_name %}
+                <p class="header-subtitle">לפי סקר {{ outlet_name }} | תאריך: {{ poll_date_str }}</p>
+                {% elif title_line2 %}
+                <p class="header-subtitle">{{ title_line2 }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
 <svg id="chart" xmlns="http://www.w3.org/2000/svg" viewBox="{{ view_box }}" width="{{ svg_width }}" height="{{ svg_height }}">
   <defs>
     <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
       <path d="M0,0 L6,3 L0,6 Z" fill="#000000"/>
     </marker>
   </defs>
-
-  {# 0. Title, above the arc -- same two-line headline + poll/date subhead
-        as the matching bar chart's header #}
-  {% if title_line1 %}
-  <text x="{{ title_line1_pos[0] }}" y="{{ title_line1_pos[1] }}" font-size="45" fill="#000000"
-        font-weight="900" text-anchor="middle" direction="rtl" font-family="'Heebo', sans-serif">{{ title_line1 }}</text>
-  {% endif %}
-  {% if title_line2 %}
-  <text x="{{ title_line2_pos[0] }}" y="{{ title_line2_pos[1] }}" font-size="33" fill="#333333"
-        font-weight="500" text-anchor="middle" direction="rtl" font-family="'Heebo', sans-serif">{{ title_line2 }}</text>
-  {% endif %}
 
   {# 1. Arc segments #}
   {% for seg in segments %}
@@ -69,34 +131,35 @@
 
   {# 4. Bloc totals at the base #}
   {% for rect in bloc_rects %}
-  <rect x="{{ rect.cx - 52 }}" y="{{ cy }}" width="104" height="76" fill="#fff"/>
-  <text x="{{ rect.cx }}" y="{{ cy + 28 }}" font-size="24" fill="#000" font-weight="bold"
+  <rect x="{{ rect.cx - rect.width / 2 }}" y="{{ cy }}" width="{{ rect.width }}" height="76" fill="#fff"/>
+  <text x="{{ rect.cx }}" y="{{ cy + 28 }}" font-size="{{ rect.label_font_size }}" fill="#000" font-weight="bold"
         text-anchor="middle" font-family="'Heebo', sans-serif">{{ rect.label }}</text>
   <text x="{{ rect.cx }}" y="{{ cy + 60 }}" font-size="30" fill="#000" font-weight="bold"
         text-anchor="middle" font-family="'Heebo', sans-serif">{{ rect.total }}</text>
   {% endfor %}
 
-  {# 5. Gray/unmapped segment label #}
-  {% if gray_label_lines %}
-  {% for line in gray_label_lines %}
-  <text x="{{ gray_label_pos[0] }}" y="{{ line.y }}" font-size="11" fill="#fff" font-weight="bold"
+  {# 5. Gray/unmapped segments' labels (one group per labeled gray segment) #}
+  {% for grp in gray_labels %}
+  {% for line in grp.lines %}
+  <text x="{{ grp.x }}" y="{{ line.y }}" font-size="11" fill="#fff" font-weight="bold"
         text-anchor="middle" font-family="'Heebo', sans-serif">{{ line.text }}</text>
   {% endfor %}
-  {% endif %}
+  {% endfor %}
 
   {# 6. Symmetric arrows pointing to the total-women callout #}
   {% for arrow in arrows %}
   <line x1="{{ arrow.x1 }}" y1="{{ arrow.y1 }}" x2="{{ arrow.x2 }}" y2="{{ arrow.y2 }}"
         stroke="#000000" stroke-width="2" marker-end="url(#arrowhead)"/>
   {% endfor %}
-  <text x="{{ total_label_pos[0] }}" y="{{ total_label_pos[1] }}" font-size="32" fill="#000000"
+  <text x="{{ total_label_pos[0] }}" y="{{ total_label_pos[1] }}" font-size="{{ total_label_font_size }}" fill="#000000"
         font-weight="bold" text-anchor="middle" direction="rtl" font-family="'Heebo', sans-serif">{{ total_label_text }}</text>
 
   {# 7. Logo, centered below the arc #}
   {% if logo_data_uri %}
   <image href="{{ logo_data_uri }}" x="{{ logo_pos[0] }}" y="{{ logo_pos[1] }}"
-         width="{{ logo_size }}" height="{{ logo_size }}"/>
+         width="{{ logo_width }}" height="{{ logo_height }}" preserveAspectRatio="xMidYMid meet"/>
   {% endif %}
 </svg>
+</div>
 </body>
 </html>

@@ -63,6 +63,18 @@ from collections import OrderedDict
 
 import openpyxl
 
+# Windows consoles default stdout/stderr to the system codepage (e.g. cp1252),
+# which can't encode the Hebrew text this script prints (reports, --help,
+# argparse errors) or writes into the workbook -- force UTF-8 here, at import
+# time, so it's in effect even before argparse.parse_args() runs (that's what
+# handles --help/-h, and it can print and exit before main()'s own body runs).
+for _stream_name in ("stdout", "stderr"):
+    _stream = getattr(sys, _stream_name)
+    if hasattr(_stream, "reconfigure"):
+        # errors="replace" so an odd console codepage garbles rather than
+        # crashes -- the important thing is the run completes and saves.
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 POLL_SHEET = "סקר 2026"
 CANDIDATES_SHEET = "מועמדים 2026"
 CALC_SHEET = "חישוב 2026"
@@ -273,16 +285,6 @@ def main():
     ap.add_argument("--in-place", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
-
-    # Windows consoles default stdout/stderr to the system codepage (e.g. cp1252),
-    # which can't encode the Hebrew text in the report — force UTF-8 so `print()`
-    # doesn't crash on party names / notes containing Hebrew characters.
-    for stream_name in ("stdout", "stderr"):
-        stream = getattr(sys, stream_name)
-        if hasattr(stream, "reconfigure"):
-            # errors="replace" so an odd console codepage garbles rather than
-            # crashes — the important thing is the run completes and saves.
-            stream.reconfigure(encoding="utf-8", errors="replace")
 
     wb = openpyxl.load_workbook(args.xlsx)
     for sheet in (POLL_SHEET, CANDIDATES_SHEET, CALC_SHEET):

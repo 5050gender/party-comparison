@@ -23,7 +23,7 @@
             color: #000000;
             display: flex;
             justify-content: center;
-            padding: 20px 15px 30px;
+            padding: 14px 10px 18px;
         }
 
         .chart-wrapper {
@@ -31,6 +31,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            position: relative;
         }
 
         .header-area {
@@ -41,7 +42,7 @@
         .header-title {
             font-size: 34px;
             font-weight: 900;
-            margin: 0 0 6px 0;
+            margin: 0;
             line-height: 1.15;
         }
 
@@ -49,15 +50,45 @@
             font-size: 24px;
             color: #000000;
             font-weight: 800;
-            margin: 0 0 12px 0;
+            margin: 0;
             line-height: 1.2;
+        }
+
+        /* Row pairing the outlet's logo with the title+subtitle text block
+           (only used when outlet_name is set). The logo is the row's first
+           element, so in this RTL layout it lands on the right-hand side,
+           right next to the text -- and align-items: center on the row
+           vertically centers the logo against the whole text block, so its
+           middle sits between the title and subtitle lines rather than
+           beside just one of them. Sized to match the 5050 logo (see
+           outlet_logo_size / .logo-floating below). */
+        .header-text-row {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin: 0 0 12px 0;
+        }
+
+        .header-text-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .outlet-logo {
+            width: {{ outlet_logo_size }}px;
+            height: auto;
+            object-fit: contain;
         }
 
         /* "סה"כ X נשים" summary badge, under the subtitle */
         .total-badge {
             background-color: #8A42FF;
             color: #ffffff;
-            font-size: 24px;
+            font-size: 34px;
             font-weight: 800;
             padding: 4px 22px;
             border-radius: 4px;
@@ -68,6 +99,7 @@
 
         .chart-body {
             display: grid;
+            direction: ltr;
             grid-template-columns: {{ name_col_width }}px {{ bar_col_width }}px;
             row-gap: 8px;
             column-gap: 8px;
@@ -76,9 +108,10 @@
         }
 
         .party-name {
-            font-size: 20px;
-            font-weight: 800;
+            font-size: 22px;
+            font-weight: 400;
             color: #000000;
+            direction: rtl;
             text-align: right;
             white-space: nowrap;
             line-height: 1;
@@ -106,19 +139,22 @@
             height: 100%;
             display: flex;
             align-items: center;
-            justify-content: flex-start;
-            padding-left: 10px;
+            justify-content: flex-end;
+            padding-right: 10px;
             box-sizing: border-box;
         }
 
         .bar-women.narrow {
             justify-content: center;
-            padding-left: 0;
+            padding-right: 0;
+        }
+
+        .bar-women.narrow-font {
             font-size: 16px;
         }
 
         .bar-men {
-            background-color: #B5B4C4;
+            background-color: #f7d398;
             height: 100%;
         }
 
@@ -130,12 +166,11 @@
             line-height: 1;
         }
 
-        /* 5050 logo, floating below the whole chart */
+        /* 5050 logo, floating over the bottom-right corner of the chart */
         .logo-container {
-            display: flex;
-            justify-content: center;
-            width: 100%;
-            margin-top: -20px;
+            position: absolute;
+            bottom: 70px;
+            right: 20px;
             z-index: 10;
         }
 
@@ -150,8 +185,17 @@
 
     <div class="chart-wrapper">
         <div class="header-area">
-            <h1 class="header-title">{{ title_line1 }}</h1>
-            <p class="header-subtitle">{{ title_line2 }}</p>
+            <div class="header-text-row">
+                {% if outlet_logo_data_uri %}<img class="outlet-logo" src="{{ outlet_logo_data_uri }}" alt="{{ outlet_name }}">{% endif %}
+                <div class="header-text-col">
+                    <h1 class="header-title">{{ title_line1 }}</h1>
+                    {% if outlet_name %}
+                    <p class="header-subtitle">לפי סקר {{ outlet_name }} | תאריך: {{ poll_date_str }}</p>
+                    {% else %}
+                    <p class="header-subtitle">{{ title_line2 }}</p>
+                    {% endif %}
+                </div>
+            </div>
             <div class="total-badge">סה"כ {{ total_women }} נשים</div>
         </div>
 
@@ -161,7 +205,7 @@
             <div class="bar-area">
                 <div class="bar-container" style="width: {{ row.total_px }}px;">
                     {% if row.women > 0 %}
-                    <div class="bar-women{% if row.narrow %} narrow{% endif %}" style="width: {{ row.women_px }}px;">{{ row.women }}</div>
+                    <div class="bar-women{% if row.narrow %} narrow{% endif %}{% if row.narrow_font %} narrow-font{% endif %}" style="width: {{ row.women_px }}px;">{{ row.women }}</div>
                     {% endif %}
                     {% if row.men > 0 %}
                     <div class="bar-men" style="width: {{ row.men_px }}px;"></div>

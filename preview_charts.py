@@ -70,12 +70,12 @@ SAMPLE_PARTIES = [
 
 SAMPLE_ARC = dict(
     opp_women=28, opp_men=33, coal_women=5, coal_men=47,
-    gray_seats=7, gray_label="הרשימה המשותפת",
+    gray_men=10, gray_women=1, gray_label="הרשימה המשותפת / המילואימניקים",
 )
 
 
 def _preview_bar_chart_html() -> str:
-    parties = [p for p, _w, _m in SAMPLE_PARTIES]
+    parties = [m._chart_display_name(p) for p, _w, _m in SAMPLE_PARTIES]
     women = [w for _p, w, _m in SAMPLE_PARTIES]
     men = [mm for _p, _w, mm in SAMPLE_PARTIES]
     totals = [w + mm for w, mm in zip(women, men)]
@@ -86,7 +86,6 @@ def _preview_bar_chart_html() -> str:
     tick_max = max(5, (max_total // 5 + 1) * 5)
     x_max = tick_max * m.BAR_HEADROOM_MULTIPLIER
     px_per_seat = m.BAR_AREA_COL_WIDTH / x_max if x_max else 0
-    NARROW_PX = 34
 
     rows = []
     for p, w, mm, t in zip(parties, women, men, totals):
@@ -96,7 +95,8 @@ def _preview_bar_chart_html() -> str:
         rows.append({
             "party": p, "women": w, "men": mm, "total": t,
             "total_px": total_px, "women_px": women_px, "men_px": men_px,
-            "narrow": women_px < NARROW_PX,
+            "narrow": women_px < m.BAR_NARROW_CENTER_PX,
+            "narrow_font": women_px < m.BAR_NARROW_FONT_PX,
         })
 
     title_line1 = m.build_bar_headline()
