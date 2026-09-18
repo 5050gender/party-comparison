@@ -457,6 +457,7 @@ OUTLET_LOGO_FILES = {
     "חדשות 13": "channel_13.png",
     "כאן חדשות": "kan_11.png",
     "i24 news": "i24_news.png",
+    "מעריב": "maariv.png",
 }
 
 
