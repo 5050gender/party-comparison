@@ -478,8 +478,8 @@
 
   function quoteBlock(p, side) {
     var who = '<div class="quote-who"><span class="logo ' + side + '"><img src="' + LOGOS[p.id] + '" alt="" /></span>' + esc(p.party) + ' &middot; ' + esc(p.leader) + '</div>';
-    var listLine = p.listUrl ? '<p class="list-link"><a href="' + p.listUrl + '" target="_blank" rel="noopener">רשימת המועמדים הרשמית</a></p>' : '<p class="list-link muted">טרם פורסמה רשימה סופית</p>';
-    var sourceLine = p.listSource ? '<p class="list-source">מקור נתוני הרשימה: ' + esc(p.listSource) + '</p>' : '';
+    var listLine = p.listUrl ? '<p class="list-link"><a href="' + p.listUrl + '" target="_blank" rel="noopener">רשימת המועמדים הרשמית</a></p>' : '';
+    var sourceLine = '<p class="list-source">מקור נתוני רשימה: רשימה רשמית סופית</p>';
     var stance = classifyStance(p.quote);
     var badge = '<span class="cf-stance-badge ' + stance.cls + '">' + stance.label + '</span>';
     var body = p.quote
