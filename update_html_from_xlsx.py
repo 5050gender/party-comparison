@@ -89,6 +89,8 @@ ID_TO_XLSX_PARTY = [
     ('bennett', 'ביחד (בנט-לפיד)'),
     ('eisenkot', 'ישר!'),
     ('hendel', 'המילואימניקים-הכלכלית'),  # Yoaz Hendel + Yaron Zelekha merger, 2026-09-06/07
+    ('leitner', 'הציבור החרדי'),  # Moti Leitner's new Haredi party, filed with the Central
+                                  # Elections Committee 2026-09; added 2026-09-24
 #    ('erdan', 'האחדות'),  # Gilad Erdan + Yuli Edelstein's party, founded 2026-08-06, added 2026-08
 ]
 

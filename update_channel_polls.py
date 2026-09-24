@@ -145,7 +145,6 @@ FIELD_TO_PARTY = [
     ('otzma', 'עוצמה יהודית'),
     ('bennett', 'ביחד (בנט-לפיד)'),
     ('eisenkot', 'ישר!'),
-    ('erdan', 'האחדות'),  # Gilad Erdan + Yuli Edelstein's party, founded 2026-08-06, added 2026-08
     ('winter', 'עמך ישראל'),  # Ofer Winter's party, launched 2026-08-25, added 2026-08
     ('miluimnikim', 'המילואימניקים-הכלכלית'),  # confirmed live 2026-09-08: themadad.com re-purposed
                                                 # this same field slug (formerly טרופר-הנדל, see
@@ -174,12 +173,12 @@ AVERAGE_LABEL_TO_PARTY = [
                                      # for the merger; the old direct 'חדש תע"ל'/'בל"ד' labels
                                      # below are stale leftovers, see IGNORED_AVERAGE_LABELS.
     ('רע"מ', 'רע"מ'),
-    ('הציונות הדתית', 'הציונות הדתית'),
+    ('הציונות הדתית / זהות', 'הציונות הדתית'),  # site relabeled from plain 'הציונות הדתית', ~2026-09-24
     ('כחול לבן', 'כחול לבן'),
     ('רשימה ערבית מאוחדת', 'רשימה ערבית מאוחדת'),
-    ('מפלגה בראשות גלעד ארדן ויולי אדלשטיין', 'האחדות'),
-    ('עופר וינטר', 'עמך ישראל'),  # Ofer Winter's party, launched 2026-08-25, added 2026-08
-    ('המפלגה של הנדל וזליכה', 'המילואימניקים-הכלכלית'),  # Hendel + Zelicha merger, added 2026-09-07
+    ('עמך ישראל', 'עמך ישראל'),  # site relabeled from the leader's name 'עופר וינטר', ~2026-09-24
+    ('המילואימניקים / זליכה', 'המילואימניקים-הכלכלית'),  # site relabeled from
+                                                          # 'המפלגה של הנדל וזליכה', ~2026-09-24
 ]
 
 # Labels themadad.com's averageMaker.php still emits but that this project
@@ -196,12 +195,22 @@ AVERAGE_LABEL_TO_PARTY = [
 # - 'טרופר-הנדל' / 'בית ציוני-המילואימניקים': this project stopped tracking
 #   the Tropper-Hendel party (2026-08); ignored rather than mapped so future
 #   runs don't warn about it.
+# - 'עופר וינטר' / 'המפלגה של הנדל וזליכה': the site's OLD labels for עמך
+#   ישראל / המילואימניקים-הכלכלית, superseded ~2026-09-24 by 'עמך ישראל' /
+#   'המילואימניקים / זליכה' above; kept here in case an older cached page
+#   ever emits the old text again.
+# - 'מפלגה בראשות גלעד ארדן ויולי אדלשטיין': this project stopped tracking
+#   the Erdan-Edelstein party ("האחדות"), 2026-09-24 - it was never actually
+#   added to the workbook/HTML, so there's no party for this label to map to.
 IGNORED_AVERAGE_LABELS = {
     'יש עתיד',
     'חדש תע"ל',
     'בל"ד',
     'טרופר-הנדל',
     'בית ציוני-המילואימניקים',
+    'עופר וינטר',
+    'המפלגה של הנדל וזליכה',
+    'מפלגה בראשות גלעד ארדן ויולי אדלשטיין',
 }
 
 SHEET_NAME = 'סקרים לפי ערוץ'
