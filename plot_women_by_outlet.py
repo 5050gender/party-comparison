@@ -106,7 +106,7 @@ except ImportError as exc:  # pragma: no cover
 # supplies the data.
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 FONTS_DIR = Path(__file__).resolve().parent / "fonts"
-LOGO_PATH = TEMPLATES_DIR / "assets" / "logo_5050.jpg"
+LOGO_PATH = TEMPLATES_DIR / "assets" / "logo_5050.svg"
 EMAIL_TEMPLATE_PATH = TEMPLATES_DIR / "assets" / "text_for_email.txt"
 
 
@@ -200,9 +200,23 @@ ARC_VIEWBOX_WIDTH = 2 * (_ARC_MID_R + ARC_BLOC_RECT_WIDTH / 2 + ARC_CONTENT_MARG
 ARC_VIEWBOX_MIN_Y = 0
 ARC_VIEWBOX_HEIGHT = 420
 
-ARC_LOGO_WIDTH = 110
-ARC_LOGO_HEIGHT = 65
-ARC_LOGO_POS = (ARC_CX - ARC_LOGO_WIDTH / 2, ARC_CY + 10)
+ARC_LOGO_WIDTH = 165  # the 5050 logo itself, centered below the arc
+ARC_LOGO_HEIGHT = 98
+# Anchored to the canvas's bottom edge (ARC_VIEWBOX_HEIGHT) minus a fixed
+# margin, rather than a fixed offset from ARC_CY -- a fixed offset left the
+# logo's bottom edge wherever ARC_LOGO_HEIGHT happened to land, which is what
+# let it grow past the bottom of the canvas and get clipped when the logo
+# was enlarged. This keeps it fully on-canvas (with the same small margin)
+# no matter how tall the logo is.
+ARC_LOGO_BOTTOM_MARGIN = 12
+ARC_LOGO_POS = (ARC_CX - ARC_LOGO_WIDTH / 2,
+                 ARC_VIEWBOX_HEIGHT - ARC_LOGO_BOTTOM_MARGIN - ARC_LOGO_HEIGHT)
+
+# The outlet logo (see OUTLET_LOGO_FILES) in the header -- kept a separate,
+# smaller size from ARC_LOGO_WIDTH above (the 5050 logo) on purpose: the two
+# started out matched 1:1, but they're independent now, so bumping one no
+# longer drags the other along with it.
+ARC_OUTLET_LOGO_WIDTH = 135
 
 # Gap (px) between the outlet logo and the title/subtitle text column in the
 # header's .header-text-row -- must match that rule's CSS `gap` in
@@ -406,8 +420,7 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
         "outlet_name": outlet_name,
         "poll_date_str": poll_date_str,
         "outlet_logo_data_uri": _outlet_logo_data_uri(outlet_name) if outlet_name else None,
-        "outlet_logo_width": ARC_LOGO_WIDTH,
-        "outlet_logo_height": ARC_LOGO_HEIGHT,
+        "outlet_logo_width": ARC_OUTLET_LOGO_WIDTH,
         "logo_data_uri": logo_data_uri,
         "logo_pos": ARC_LOGO_POS,
         "logo_width": ARC_LOGO_WIDTH,
@@ -437,7 +450,7 @@ def _heebo_data_uris() -> dict:
 
 def _logo_data_uri():
     if LOGO_PATH.exists():
-        return _data_uri(LOGO_PATH, "image/jpeg")
+        return _data_uri(LOGO_PATH, "image/svg+xml")
     print(f"  warning: logo file not found at {LOGO_PATH}, charts will be "
           f"generated without it")
     return None
@@ -549,8 +562,13 @@ BAR_HEADROOM_MULTIPLIER = 1.3  # empty space reserved past the longest bar,
                                 # smaller = longer bars (closer to filling
                                 # BAR_AREA_COL_WIDTH); 1.0 would let the
                                 # longest bar touch the column's edge
-BAR_LOGO_SIZE = 110  # matches templates/bar_chart.html.j2's .logo-floating
-                      # size and the reference mockup's .logo-floating
+BAR_LOGO_SIZE = 165  # the 5050 logo itself, floating bottom-right
+
+# The outlet logo (see OUTLET_LOGO_FILES) in the header -- kept a separate,
+# smaller size from BAR_LOGO_SIZE above (the 5050 logo) on purpose: the two
+# started out matched 1:1, but they're independent now, so bumping one no
+# longer drags the other along with it.
+BAR_OUTLET_LOGO_SIZE = 135
 
 # A women-bar this narrow can't fit its own number left-aligned with padding
 # at the normal font size -- two tiers, matching the reference mockup: a
@@ -587,7 +605,7 @@ def render_bar_chart_html(title_line1: str, title_line2: str, rows: list,
         outlet_name=outlet_name,
         poll_date_str=poll_date_str,
         outlet_logo_data_uri=_outlet_logo_data_uri(outlet_name) if outlet_name else None,
-        outlet_logo_size=BAR_LOGO_SIZE,
+        outlet_logo_size=BAR_OUTLET_LOGO_SIZE,
         **_heebo_data_uris(),
     )
     _render_html_to_square_jpg(html, out_path, css_width=BAR_CHART_CSS_WIDTH,
@@ -1096,24 +1114,38 @@ def main():
     # Preserve the order in which outlet/date polls first appear in the sheet
     polls = df[[COL_OUTLET, COL_DATE]].drop_duplicates().itertuples(index=False)
 
+    # Per-poll charts are a snapshot of that specific historical poll -- once
+    # a poll has been plotted, its numbers never change, so there's no need
+    # to pay for another LibreOffice-recalc'd render + headless-Chromium
+    # screenshot on every run. Skip a poll's chart(s) entirely when the
+    # output file already exists in output_dir, and only render the ones
+    # that are actually new (plus the mean/aggregate poll below, which is
+    # NOT skipped -- it changes every time any poll is added, so it's always
+    # regenerated).
     for outlet, date_raw in polls:
         df_poll = df[(df[COL_OUTLET] == outlet) & (df[COL_DATE] == date_raw)]
         date_str = format_poll_date(date_raw)
 
         fname = f"women_seats_{sanitize_filename(outlet)}_{date_str.replace('.', '-')}.jpg"
         out_path = output_dir / fname
-        plot_poll(df_poll, outlet, date_raw, out_path)
-        print(f"  wrote {out_path.name}")
+        if out_path.exists():
+            print(f"  skipping {out_path.name}: already exists (not a new poll)")
+        else:
+            plot_poll(df_poll, outlet, date_raw, out_path)
+            print(f"  wrote {out_path.name}")
 
         pie_out_path = None
         if mapping is not None:
             pie_fname = f"women_by_bloc_{sanitize_filename(outlet)}_{date_str.replace('.', '-')}.jpg"
             pie_out_path = output_dir / pie_fname
-            plot_pie_poll(df_poll, outlet, date_raw, mapping, pie_out_path)
             if pie_out_path.exists():
-                print(f"  wrote {pie_out_path.name}")
+                print(f"  skipping {pie_out_path.name}: already exists (not a new poll)")
             else:
-                pie_out_path = None  # plot_pie_poll skips 0-women polls
+                plot_pie_poll(df_poll, outlet, date_raw, mapping, pie_out_path)
+                if pie_out_path.exists():
+                    print(f"  wrote {pie_out_path.name}")
+            if not pie_out_path.exists():
+                pie_out_path = None  # 0-women poll: plot_pie_poll always skips these
 
         if args.create_email_drafts:
             if df_poll.empty or df_poll[COL_WOMEN].sum() == 0:
@@ -1127,7 +1159,10 @@ def main():
             save_gmail_draft(msg, app_password)
             print(f"  created email draft: {subject}")
 
-    # Also plot the aggregate "mean poll" (average-of-polls) estimate.
+    # Also plot the aggregate "mean poll" (average-of-polls) estimate --
+    # always regenerated (never skipped even if the file already exists),
+    # since it's recomputed from every poll above and changes any time a
+    # poll is added, unlike each individual poll's own fixed snapshot.
     df_mean = pd.read_excel(workbook_path, sheet_name=MEAN_SHEET_NAME)
     mean_out_path = output_dir / "women_seats_ממוצע_סקרים.jpg"
     plot_mean_poll(df_mean, mean_out_path)
