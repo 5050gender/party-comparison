@@ -48,7 +48,7 @@ _spec.loader.exec_module(m)
 
 # --- Sample data (no workbook needed) ---------------------------------------
 # A realistic 12-party spread, including a few zero-seat parties at the tail
-# (like a real poll) so the bar chart's logo-placement logic has something
+# (like a real poll) so the bar chart's logo-placement logic has something 
 # to react to.
 SAMPLE_PARTIES = [
     # (party name,            women, men)
