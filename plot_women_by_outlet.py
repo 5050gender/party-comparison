@@ -133,13 +133,19 @@ MAPPING_COL_GROUP = "גוש"
 OPPOSITION_GROUP_NAME = "אופוזיציה"
 COALITION_GROUP_NAME = "קואליציה"
 
+# Raw party name (exactly as it appears in COL_PARTY/the workbook) for the
+# reservists' party, which isn't in mapping.csv (so mapping.get() returns
+# None for it, same as any other unmapped party) but is broken out into its
+# own line in the email stats -- see compute_poll_email_stats/RESERVISTS_PARTY_NAME.
+RESERVISTS_PARTY_NAME = "המילואימניקים-הכלכלית"
+
 # Shortened party names for chart display only -- the workbook/mapping.csv
 # keep using the full official name everywhere else (candidate lists, bloc
 # lookups, etc.); only what's actually drawn on a chart uses the shorter
 # form, so this must never be applied before a mapping.get(party) lookup.
 CHART_DISPLAY_NAME_OVERRIDES = {
     "ביחד (בנט-לפיד)": "ביחד",
-    "המילואימניקים-הכלכלית": "המילואימניקים",
+    RESERVISTS_PARTY_NAME: "המילואימניקים",
 }
 
 
@@ -877,18 +883,27 @@ def compute_poll_email_stats(df_poll: pd.DataFrame, mapping: dict) -> dict:
     email clients do their own bidi rendering, so reordering here would
     show up backwards.
 
-    "change_bloc_women" folds in unmapped/"gray" parties' women (parties
-    not mapped to exactly OPPOSITION_GROUP_NAME or COALITION_GROUP_NAME),
-    matching the arc chart's "גוש השינוי" total (see render_bloc_chart)."""
+    The email breaks women down into three groups: "change_bloc_women"
+    ("גוש השינוי + המשותפת") folds in the opposition plus any unmapped/"gray"
+    party OTHER than the reservists' (parties not mapped to exactly
+    OPPOSITION_GROUP_NAME or COALITION_GROUP_NAME -- currently just הרשימה
+    המשותפת, since RESERVISTS_PARTY_NAME is carved out below -- but any
+    other future unmapped party would land here too, same as before);
+    "coalition_bloc_women" ("ימין־חרדים") is unchanged; and
+    "reservists_women" ("מילואימניקים") is now its own line, broken out by
+    RESERVISTS_PARTY_NAME rather than folded into the change bloc."""
     women_by_party = df_poll.set_index(COL_PARTY)[COL_WOMEN]
     leading_party = women_by_party.idxmax()
     leading_women = int(women_by_party.max())
 
     groups = df_poll[COL_PARTY].map(mapping)
+    is_reservists = df_poll[COL_PARTY] == RESERVISTS_PARTY_NAME
     opposition_women = int(df_poll.loc[groups == OPPOSITION_GROUP_NAME, COL_WOMEN].sum())
     coalition_women = int(df_poll.loc[groups == COALITION_GROUP_NAME, COL_WOMEN].sum())
-    gray_women = int(df_poll.loc[
-        ~groups.isin([OPPOSITION_GROUP_NAME, COALITION_GROUP_NAME]), COL_WOMEN
+    reservists_women = int(df_poll.loc[is_reservists, COL_WOMEN].sum())
+    other_gray_women = int(df_poll.loc[
+        ~groups.isin([OPPOSITION_GROUP_NAME, COALITION_GROUP_NAME]) & ~is_reservists,
+        COL_WOMEN
     ].sum())
     total_women = int(df_poll[COL_WOMEN].sum())
 
@@ -897,8 +912,9 @@ def compute_poll_email_stats(df_poll: pd.DataFrame, mapping: dict) -> dict:
         "leading_women": leading_women,
         "opposition_women": opposition_women,
         "coalition_women": coalition_women,
-        "gray_women": gray_women,
-        "change_bloc_women": opposition_women + gray_women,
+        "reservists_women": reservists_women,
+        "other_gray_women": other_gray_women,
+        "change_bloc_women": opposition_women + other_gray_women,
         "coalition_bloc_women": coalition_women,
         "total_women": total_women,
     }
@@ -981,6 +997,7 @@ def build_email_body(outlet: str, date_str: str, stats: dict) -> str:
         stats["leading_women"],
         stats["change_bloc_women"],
         stats["coalition_bloc_women"],
+        stats["reservists_women"],
         stats["total_women"],
     ])
     return body
