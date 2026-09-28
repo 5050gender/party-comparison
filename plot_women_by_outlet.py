@@ -152,6 +152,31 @@ CHART_DISPLAY_NAME_OVERRIDES = {
 def _chart_display_name(party: str) -> str:
     return CHART_DISPLAY_NAME_OVERRIDES.get(party, party)
 
+
+def _women_count_phrase(n: int) -> str:
+    """"<n> נשים", except the grammatically correct Hebrew singular "אישה
+    אחת" (with no digit) when n == 1 -- "1 נשים" mixes a singular count with
+    a plural noun, which reads as a mistake. Used everywhere a woman-count
+    is displayed as "<number> נשים" (bar chart total badge, email)."""
+    return "אישה אחת" if n == 1 else f"{n} נשים"
+
+
+def _mk_women_count_phrase(n: int) -> str:
+    """Same idea as _women_count_phrase, but for the arc chart's "<n> חברות
+    כנסת" callout -- singular is "חברת כנסת אחת", not "אישה אחת" (it's
+    specifically about seats, not just "women")."""
+    return "חברת כנסת אחת" if n == 1 else f"{n} חברות כנסת"
+
+
+def _arc_women_num_sub(n: int) -> tuple:
+    """(num, sub) text pair for an arc segment's two-line "<n> / נשים"
+    label (see build_arc_chart_data's segs) -- ("אישה", "אחת") instead of
+    ("1", "נשים") when n == 1, so it reads "אישה אחת" split across the same
+    two lines rather than mixing a singular count with a plural noun."""
+    if n == 1:
+        return "אישה", "אחת"
+    return str(n), "נשים"
+
 # --- Email drafts (--create-email-drafts) ---------------------------------
 # Creates a Gmail DRAFT (never sends) per outlet, summarizing that poll and
 # attaching its bar + bloc charts. Uses IMAP APPEND to Gmail's Drafts folder,
@@ -307,16 +332,18 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
     gray segment inserted between opp_women and coal_women -- right at the
     seam between the two blocs -- instead of every unmapped party's seats
     (men and women together) being folded into one single gray blob."""
+    opp_women_num, opp_women_sub = _arc_women_num_sub(opp_women)
+    coal_women_num, coal_women_sub = _arc_women_num_sub(coal_women)
     segs = [
         {"key": "gray_men", "n": gray_men, "fill": ARC_COLOR_GRAY, "bloc": "gray",
          "label": gray_label},
         {"key": "opp_men", "n": opp_men, "fill": ARC_COLOR_OPP_MEN, "bloc": "opposition"},
         {"key": "opp_women", "n": opp_women, "fill": ARC_COLOR_OPP_WOMEN, "bloc": "opposition",
-         "num": str(opp_women), "sub": "נשים", "contour": ARC_CONTOUR_OPP_WOMEN},
+         "num": opp_women_num, "sub": opp_women_sub, "contour": ARC_CONTOUR_OPP_WOMEN},
         {"key": "gray_women", "n": gray_women, "fill": ARC_COLOR_GRAY,
          "bloc": "boundary"},
         {"key": "coal_women", "n": coal_women, "fill": ARC_COLOR_COAL_WOMEN, "bloc": "coalition",
-         "num": str(coal_women), "sub": "נשים", "contour": ARC_CONTOUR_COAL_WOMEN,
+         "num": coal_women_num, "sub": coal_women_sub, "contour": ARC_CONTOUR_COAL_WOMEN,
          "label_shift": 2.5},
         {"key": "coal_men", "n": coal_men, "fill": ARC_COLOR_COAL_MEN, "bloc": "coalition"},
     ]
@@ -604,6 +631,7 @@ def render_bar_chart_html(title_line1: str, title_line2: str, rows: list,
     html = template.render(
         title_line1=title_line1, title_line2=title_line2, rows=rows,
         total_women=total_women,
+        total_women_phrase=_women_count_phrase(total_women),
         logo_data_uri=_logo_data_uri(),
         logo_size=BAR_LOGO_SIZE,
         name_col_width=BAR_NAME_COL_WIDTH,
@@ -835,7 +863,7 @@ def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_line1: str,
               f"folded into \"{ARC_BLOC_CHANGE_LABEL}\": {', '.join(gray_parties)}")
 
     gray_label = " / ".join(gray_parties) if gray_parties else ""
-    total_label_text = f"{total_women} חברות כנסת"
+    total_label_text = _mk_women_count_phrase(total_women)
 
     arc_data = build_arc_chart_data(
         opp_women=opp_women, opp_men=opp_men,
@@ -1000,6 +1028,15 @@ def build_email_body(outlet: str, date_str: str, stats: dict) -> str:
         stats["reservists_women"],
         stats["total_women"],
     ])
+    # Every "[מספר]" above is immediately followed by the literal word
+    # "נשים" in the template text (see text_for_email.txt), so "1 נשים" can
+    # come out of the fill above -- that mixes a singular count with a
+    # plural noun, which reads as a mistake in Hebrew. Fix it up afterwards
+    # rather than templating each occurrence individually: replace "1 נשים"
+    # with "אישה אחת" (no digit) wherever it landed. The lookaround guards
+    # keep this from matching inside an unrelated multi-digit number like
+    # "21 נשים".
+    body = re.sub(r"(?<!\d)1 נשים(?!\d)", "אישה אחת", body)
     return body
 
 

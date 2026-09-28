@@ -107,6 +107,7 @@ def _preview_bar_chart_html() -> str:
     return template.render(
         title_line1=title_line1, title_line2=title_line2, rows=rows,
         total_women=total_women,
+        total_women_phrase=m._women_count_phrase(total_women),
         logo_data_uri=m._logo_data_uri(),
         logo_size=m.BAR_LOGO_SIZE,
         name_col_width=m.BAR_NAME_COL_WIDTH,
@@ -121,7 +122,7 @@ def _preview_arc_chart_html() -> str:
     title_line2 = m.build_bar_subheadline_mean()
     arc_data = m.build_arc_chart_data(
         **SAMPLE_ARC,
-        total_women_label=f"{total_women} חברות כנסת",
+        total_women_label=m._mk_women_count_phrase(total_women),
         title_line1=title_line1, title_line2=title_line2,
         logo_data_uri=m._logo_data_uri(),
     )
