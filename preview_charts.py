@@ -70,7 +70,8 @@ SAMPLE_PARTIES = [
 
 SAMPLE_ARC = dict(
     opp_women=28, opp_men=33, coal_women=5, coal_men=47,
-    gray_men=10, gray_women=1, gray_label="הרשימה המשותפת / המילואימניקים",
+    gray_men=7, gray_women=0, gray_label="הרשימה המשותפת",
+    res_men=3, res_women=1, res_label="המילואימניקים",
 )
 
 
@@ -117,7 +118,8 @@ def _preview_bar_chart_html() -> str:
 
 
 def _preview_arc_chart_html() -> str:
-    total_women = SAMPLE_ARC["opp_women"] + SAMPLE_ARC["coal_women"]
+    total_women = (SAMPLE_ARC["opp_women"] + SAMPLE_ARC["coal_women"]
+                   + SAMPLE_ARC["gray_women"] + SAMPLE_ARC["res_women"])
     title_line1 = m.build_bar_headline()
     title_line2 = m.build_bar_subheadline_mean()
     arc_data = m.build_arc_chart_data(
