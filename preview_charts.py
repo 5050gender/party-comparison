@@ -1,22 +1,22 @@
 """Live-preview helper for the two chart templates (templates/bar_chart.html.j2
-and templates/arc_chart.html.j2) -- for tweaking CSS/layout without waiting on
-a full run.
+and templates/bloc_bar_chart.html.j2) -- for tweaking CSS/layout without
+waiting on a full run.
 
 Unlike plot_women_by_outlet.py, this does NOT read any workbook and does NOT
 render any JPGs. It fills the templates with realistic sample data and writes
 plain, already-rendered .html files that open directly in a browser.
 
 Usage:
-    1. Edit templates/bar_chart.html.j2 or templates/arc_chart.html.j2
+    1. Edit templates/bar_chart.html.j2 or templates/bloc_bar_chart.html.j2
        (colors, fonts, spacing, wording, ...).
     2. Run:  python preview_charts.py
     3. It writes preview/bar_chart_preview.html and
-       preview/arc_chart_preview.html and opens both in your default
+       preview/bloc_bar_chart_preview.html and opens both in your default
        browser. After further edits, just re-run this script and refresh
        the browser tab (or run it once and refresh after each edit -- the
        files are rewritten in place, only the content changes).
 
-Everything (colors, fonts, spacing, bar scaling, arc geometry, text) is
+Everything (colors, fonts, spacing, bar scaling, row bucketing, text) is
 exactly what a real run would produce for this sample data -- this is the
 *same* rendering code, just pointed at made-up numbers instead of a
 workbook, and stopped short of the final screenshot-to-JPG step.
@@ -68,9 +68,13 @@ SAMPLE_PARTIES = [
     ("המילואימניקים",             0,  0),
 ]
 
-SAMPLE_ARC = dict(
-    opp_women=28, opp_men=33, coal_women=5, coal_men=47,
-    gray_men=10, gray_women=1, gray_label="הרשימה המשותפת / המילואימניקים",
+# other_parts mirrors what render_bloc_chart() builds from the workbook:
+# (raw party name, women, men) tuples for unmapped, non-reservists parties.
+SAMPLE_BLOC_BAR = dict(
+    opp_women=28, opp_men=33,
+    coal_women=5, coal_men=47,
+    other_parts=[("הרשימה המשותפת", 0, 7)],
+    res_women=1, res_men=3,
 )
 
 
@@ -116,34 +120,36 @@ def _preview_bar_chart_html() -> str:
     )
 
 
-def _preview_arc_chart_html() -> str:
-    total_women = SAMPLE_ARC["opp_women"] + SAMPLE_ARC["coal_women"]
+def _preview_bloc_bar_chart_html() -> str:
     title_line1 = m.build_bar_headline()
     title_line2 = m.build_bar_subheadline_mean()
-    arc_data = m.build_arc_chart_data(
-        **SAMPLE_ARC,
-        total_women_label=m._mk_women_count_phrase(total_women),
+    rows = m.build_bloc_bar_rows(**SAMPLE_BLOC_BAR)
+    template = m._JINJA_ENV.get_template("bloc_bar_chart.html.j2")
+    return template.render(
+        rows=rows,
+        chart_width=m.BLOC_BAR_CHART_WIDTH,
+        bar_area_width=m.BLOC_BAR_AREA_WIDTH,
         title_line1=title_line1, title_line2=title_line2,
         logo_data_uri=m._logo_data_uri(),
+        logo_width=m.BLOC_BAR_LOGO_WIDTH, logo_height=m.BLOC_BAR_LOGO_HEIGHT,
+        **m._heebo_data_uris(),
     )
-    template = m._JINJA_ENV.get_template("arc_chart.html.j2")
-    return template.render(**arc_data, **m._heebo_data_uris())
 
 
 def main():
     PREVIEW_DIR.mkdir(exist_ok=True)
     bar_path = PREVIEW_DIR / "bar_chart_preview.html"
-    arc_path = PREVIEW_DIR / "arc_chart_preview.html"
+    bloc_bar_path = PREVIEW_DIR / "bloc_bar_chart_preview.html"
 
     bar_path.write_text(_preview_bar_chart_html(), encoding="utf-8")
-    arc_path.write_text(_preview_arc_chart_html(), encoding="utf-8")
+    bloc_bar_path.write_text(_preview_bloc_bar_chart_html(), encoding="utf-8")
 
     print(f"Wrote {bar_path}")
-    print(f"Wrote {arc_path}")
+    print(f"Wrote {bloc_bar_path}")
     print("Opening in your default browser (re-run this script and refresh "
           "the tab after further template edits)...")
     webbrowser.open(bar_path.resolve().as_uri())
-    webbrowser.open(arc_path.resolve().as_uri())
+    webbrowser.open(bloc_bar_path.resolve().as_uri())
 
 
 if __name__ == "__main__":
