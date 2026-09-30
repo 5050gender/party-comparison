@@ -114,7 +114,7 @@
   {% for sep in separators %}
   <line x1="{{ sep.x1 }}" y1="{{ sep.y1 }}" x2="{{ sep.x2 }}" y2="{{ sep.y2 }}"
         stroke="white"
-        {% if sep.dashed %}stroke-width="1.5" stroke-dasharray="5,4"{% else %}stroke-width="3"{% endif %}/>
+        {% if sep.style == "dotted" %}stroke-width="2.5" stroke-dasharray="0.1,5" stroke-linecap="round"{% elif sep.style == "dashed" %}stroke-width="1.5" stroke-dasharray="5,4"{% else %}stroke-width="3"{% endif %}/>
   {% endfor %}
 
   {# 3. Numbers + "נשים" labels inside the women segments #}
@@ -146,12 +146,12 @@
   {% endfor %}
   {% endfor %}
 
-  {# 6. Reservists: women count + rotated party name outside the arc #}
-  {% if res_num %}
+  {# 6. Small women counts (gray parties, reservists) + reservists' rotated name outside the arc #}
+  {% for res_num in small_nums %}
   <text x="{{ res_num.x }}" y="{{ res_num.y }}" font-size="{{ res_num.font_size }}" fill="white"
         font-weight="bold" text-anchor="middle" font-family="'Heebo', sans-serif"
         stroke="{{ res_num.contour }}" stroke-width="3" stroke-linejoin="round" paint-order="stroke fill">{{ res_num.text }}</text>
-  {% endif %}
+  {% endfor %}
   {% if res_name %}
   <text x="0" y="0" font-size="{{ res_name.font_size }}" fill="#333" font-weight="bold" transform="translate({{ res_name.x }},{{ res_name.y }}) rotate({{ res_name.rotate }})"
         text-anchor="middle" font-family="'Heebo', sans-serif">{{ res_name.text }}</text>

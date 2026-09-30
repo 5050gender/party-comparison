@@ -214,6 +214,11 @@ ARC_CONTOUR_COAL_WOMEN = "#5e0b14"
 ARC_COLOR_RES_MEN = "#8a93aa"
 ARC_COLOR_RES_WOMEN = "#5f6b85"
 ARC_CONTOUR_RES_WOMEN = "#3f4659"
+# Women of the unmapped/gray parties (e.g. הרשימה המשותפת), when there are
+# any: drawn right next to their men's segment in a slightly lighter shade
+# than the reservists' women, set off by a dotted separator, with its own
+# arrow into the total-women callout.
+ARC_COLOR_GRAY_WOMEN = "#6f7b96"
 
 ARC_BLOC_CHANGE_LABEL = "שינוי+משותפת"  # opposition + unmapped/gray seats
 ARC_BLOC_COALITION_LABEL = "ימין+חרדים"  # coalition seats
@@ -278,6 +283,10 @@ ARC_HEADER_LOGO_GAP = 15
 ARC_ARROW_LEFT_TARGET_X_OFFSET = -15
 ARC_ARROW_RIGHT_TARGET_X_OFFSET = 8
 ARC_ARROW_RES_TARGET_X_OFFSET = -2
+# The gray-women arrow comes in from the bottom-left, so it ends at the
+# callout text's left edge instead of above it (it would cross the text).
+ARC_ARROW_GRAY_WOMEN_TARGET_X_OFFSET = -68
+ARC_ARROW_GRAY_WOMEN_TARGET_Y_OFFSET = -84
 ARC_ARROW_TARGET_Y_OFFSET = -97
 ARC_TOTAL_LABEL_Y_OFFSET = -78
 ARC_TOTAL_LABEL_FONT_SIZE = 17
@@ -294,6 +303,10 @@ ARC_COAL_WOMEN_LABEL_SHIFT = 2.5
 ARC_RES_NUM_RADIUS = 203
 ARC_RES_NUM_ANGLE_SHIFT = -1.0
 ARC_RES_NUM_FONT_SIZE = 21
+# The gray parties' women count, same style as the reservists' one, drawn
+# centered on its (usually thin) segment; the y offset centers the digits
+# vertically on that point.
+ARC_GRAY_WOMEN_NUM_Y_OFFSET = 7
 ARC_RES_NAME_RADIUS = 305
 ARC_RES_NAME_ANGLE_SHIFT = -1.35
 ARC_RES_NAME_ROTATE_EXTRA = -0.83
@@ -356,13 +369,13 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
     something other than the opposition/coalition group) are gender-split
     the same way the opposition and coalition blocs are: gray_men draws as
     one peripheral segment at the very start of the arc (bottom-left, next
-    to the "שינוי+משותפת" total), and gray_women draws as a second, separate
-    gray segment inserted between opp_women and coal_women -- right at the
-    seam between the two blocs -- instead of every unmapped party's seats
+    to the "שינוי+משותפת" total), and gray_women draws right next to it as a
+    second, lighter segment set off by a dotted line, with its own arrow
+    into the total-women callout -- instead of every unmapped party's seats
     (men and women together) being folded into one single gray blob.
 
     The reservists' party (res_men/res_women) is drawn as its own two
-    segments right after that, still between the blocs, with its women
+    segments between opp_women and coal_women, with its women
     count and its rotated name (res_label) labeled separately and a third
     arrow into the total-women callout. Its seats are folded into the
     change bloc's total, like the gray ones."""
@@ -371,12 +384,11 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
     segs = [
         {"key": "gray_men", "n": gray_men, "fill": ARC_COLOR_GRAY, "bloc": "gray",
          "label": gray_label},
+        {"key": "gray_women", "n": gray_women, "fill": ARC_COLOR_GRAY_WOMEN, "bloc": "gray"},
         {"key": "opp_men", "n": opp_men, "fill": ARC_COLOR_OPP_MEN, "bloc": "opposition"},
         {"key": "opp_women", "n": opp_women, "fill": ARC_COLOR_OPP_WOMEN, "bloc": "opposition",
          "num": opp_women_num, "sub": opp_women_sub, "contour": ARC_CONTOUR_OPP_WOMEN,
          "label_shift": ARC_OPP_WOMEN_LABEL_SHIFT},
-        {"key": "gray_women", "n": gray_women, "fill": ARC_COLOR_GRAY,
-         "bloc": "boundary"},
         {"key": "res_men", "n": res_men, "fill": ARC_COLOR_RES_MEN, "bloc": "reservists"},
         {"key": "res_women", "n": res_women, "fill": ARC_COLOR_RES_WOMEN, "bloc": "reservists"},
         {"key": "coal_women", "n": coal_women, "fill": ARC_COLOR_COAL_WOMEN, "bloc": "coalition",
@@ -411,17 +423,19 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
         segments_out.append(entry)
 
     # Separators: solid between different blocs, dashed between the
-    # men/women split within the same bloc.
+    # men/women split within the same bloc -- dotted instead for the gray
+    # parties' men/women split.
     separators = []
     present = [s for s in segs if s["n"] > 0]
     for i in range(len(present) - 1):
         a, b = present[i], present[i + 1]
         x1, y1 = _arc_pt(ARC_RO + 2, a["a2"])
         x2, y2 = _arc_pt(ARC_RI - 2, a["a2"])
-        separators.append({
-            "x1": x1, "y1": y1, "x2": x2, "y2": y2,
-            "dashed": a["bloc"] == b["bloc"],
-        })
+        if a["bloc"] == b["bloc"]:
+            style = "dotted" if a["bloc"] == "gray" else "dashed"
+        else:
+            style = "solid"
+        separators.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2, "style": style})
 
     # Gray/unmapped segments' labels (small 1-2 line white text), each
     # centered in its own arc slice -- every segment with a non-empty
@@ -439,8 +453,8 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
                 line_entries = [{"text": lines[0], "y": gly + 4}]
             gray_labels.append({"x": glx, "lines": line_entries})
 
-    # The unmapped/"gray" parties (both the main gray segment and the
-    # between-the-blocs boundary segment) are shown as a visually distinct
+    # The unmapped/"gray" parties (both the men's and the women's gray
+    # segments) are shown as a visually distinct
     # color in the arc, but folded into the change/opposition bloc's total
     # below -- this matches the approved design exactly (verified against
     # real data).
@@ -473,11 +487,25 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
         {"x1": w1x, "y1": w1y, "x2": ARC_CX + ARC_ARROW_LEFT_TARGET_X_OFFSET, "y2": target_y},
         {"x1": w2x, "y1": w2y, "x2": ARC_CX + ARC_ARROW_RIGHT_TARGET_X_OFFSET, "y2": target_y},
     ]
+    # Small single-number women counts (gray parties, reservists) -- the
+    # segments are too narrow for the big two-line "X / נשים" label.
+    small_nums = []
+    if gray_women > 0:
+        gray_women_seg = segs_by_key["gray_women"]
+        gray_women_angle = (gray_women_seg["a1"] + gray_women_seg["a2"]) / 2
+        nx, ny = _arc_pt(mid_r, gray_women_angle)
+        small_nums.append({"text": str(gray_women), "x": nx,
+                           "y": round(ny + ARC_GRAY_WOMEN_NUM_Y_OFFSET, 2),
+                           "font_size": ARC_RES_NUM_FONT_SIZE,
+                           "contour": ARC_CONTOUR_RES_WOMEN})
+        gx, gy = _arc_pt(ARC_RI - 2, gray_women_angle)
+        arrows.append({"x1": gx, "y1": gy,
+                       "x2": ARC_CX + ARC_ARROW_GRAY_WOMEN_TARGET_X_OFFSET,
+                       "y2": ARC_CY + ARC_ARROW_GRAY_WOMEN_TARGET_Y_OFFSET})
     total_label_pos = (ARC_CX, ARC_CY + ARC_TOTAL_LABEL_Y_OFFSET)
 
     # Reservists: women-count number, rotated name outside the arc, and a
     # third arrow from the women segment into the callout.
-    res_num = None
     res_name = None
     res_seg_m, res_seg_w = segs_by_key["res_men"], segs_by_key["res_women"]
     if res_men + res_women > 0:
@@ -485,8 +513,9 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
         if res_women > 0:
             res_angle = (res_seg_w["a1"] + res_seg_w["a2"]) / 2
             nx, ny = _arc_pt(ARC_RES_NUM_RADIUS, res_angle + ARC_RES_NUM_ANGLE_SHIFT)
-            res_num = {"text": str(res_women), "x": nx, "y": ny,
-                       "font_size": ARC_RES_NUM_FONT_SIZE, "contour": ARC_CONTOUR_RES_WOMEN}
+            small_nums.append({"text": str(res_women), "x": nx, "y": ny,
+                               "font_size": ARC_RES_NUM_FONT_SIZE,
+                               "contour": ARC_CONTOUR_RES_WOMEN})
             rx, ry = _arc_pt(ARC_RI - 2, res_angle)
             arrows.append({"x1": rx, "y1": ry,
                            "x2": ARC_CX + ARC_ARROW_RES_TARGET_X_OFFSET, "y2": target_y})
@@ -504,7 +533,7 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
         "gray_labels": gray_labels,
         "bloc_rects": bloc_rects,
         "arrows": arrows,
-        "res_num": res_num,
+        "small_nums": small_nums,
         "res_name": res_name,
         "total_label_text": total_women_label,
         "total_label_pos": total_label_pos,
@@ -927,7 +956,7 @@ def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_line1: str,
 
     if gray_parties:
         print(f"  note: unmapped, gender-split into two gray segments (men "
-              f"at the start of the arc, women between the two blocs), "
+              f"at the start of the arc, women right after them), "
               f"folded into \"{ARC_BLOC_CHANGE_LABEL}\": {', '.join(gray_parties)}")
 
     gray_label = " / ".join(gray_parties) if gray_parties else ""
