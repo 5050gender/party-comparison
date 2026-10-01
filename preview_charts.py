@@ -1,17 +1,18 @@
-"""Live-preview helper for the two chart templates (templates/bar_chart.html.j2
-and templates/arc_chart.html.j2) -- for tweaking CSS/layout without waiting on
-a full run.
+"""Live-preview helper for the chart templates (templates/bar_chart.html.j2,
+templates/arc_chart.html.j2 and templates/bloc_bar_chart.html.j2) -- for
+tweaking CSS/layout without waiting on a full run.
 
 Unlike plot_women_by_outlet.py, this does NOT read any workbook and does NOT
 render any JPGs. It fills the templates with realistic sample data and writes
 plain, already-rendered .html files that open directly in a browser.
 
 Usage:
-    1. Edit templates/bar_chart.html.j2 or templates/arc_chart.html.j2
-       (colors, fonts, spacing, wording, ...).
+    1. Edit templates/bar_chart.html.j2, templates/arc_chart.html.j2 or
+       templates/bloc_bar_chart.html.j2 (colors, fonts, spacing, wording, ...).
     2. Run:  python preview_charts.py
-    3. It writes preview/bar_chart_preview.html and
-       preview/arc_chart_preview.html and opens both in your default
+    3. It writes preview/bar_chart_preview.html,
+       preview/arc_chart_preview.html and
+       preview/bloc_bar_chart_preview.html and opens them in your default
        browser. After further edits, just re-run this script and refresh
        the browser tab (or run it once and refresh after each edit -- the
        files are rewritten in place, only the content changes).
@@ -67,6 +68,12 @@ SAMPLE_PARTIES = [
     ("כחול לבן",             0,  0),
     ("המילואימניקים",             0,  0),
 ]
+
+SAMPLE_BLOC_BAR = dict(
+    opp_women=28, opp_men=33, coal_women=5, coal_men=47,
+    other_parts=[("הרשימה המשותפת", 0, 6)],
+    res_women=1, res_men=3,
+)
 
 SAMPLE_ARC = dict(
     opp_women=28, opp_men=33, coal_women=5, coal_men=47,
@@ -132,20 +139,35 @@ def _preview_arc_chart_html() -> str:
     return template.render(**arc_data, **m._heebo_data_uris())
 
 
+def _preview_bloc_bar_chart_html() -> str:
+    bar_data = m.build_bloc_bar_chart_data(
+        **SAMPLE_BLOC_BAR,
+        title_line1=m.build_bar_headline(),
+        title_line2=m.build_bar_subheadline_mean(),
+        logo_data_uri=m._logo_data_uri(),
+    )
+    template = m._JINJA_ENV.get_template("bloc_bar_chart.html.j2")
+    return template.render(**bar_data, **m._heebo_data_uris())
+
+
 def main():
     PREVIEW_DIR.mkdir(exist_ok=True)
     bar_path = PREVIEW_DIR / "bar_chart_preview.html"
     arc_path = PREVIEW_DIR / "arc_chart_preview.html"
+    bloc_bar_path = PREVIEW_DIR / "bloc_bar_chart_preview.html"
 
     bar_path.write_text(_preview_bar_chart_html(), encoding="utf-8")
     arc_path.write_text(_preview_arc_chart_html(), encoding="utf-8")
+    bloc_bar_path.write_text(_preview_bloc_bar_chart_html(), encoding="utf-8")
 
     print(f"Wrote {bar_path}")
     print(f"Wrote {arc_path}")
+    print(f"Wrote {bloc_bar_path}")
     print("Opening in your default browser (re-run this script and refresh "
           "the tab after further template edits)...")
     webbrowser.open(bar_path.resolve().as_uri())
     webbrowser.open(arc_path.resolve().as_uri())
+    webbrowser.open(bloc_bar_path.resolve().as_uri())
 
 
 if __name__ == "__main__":

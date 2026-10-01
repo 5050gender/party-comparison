@@ -11,7 +11,8 @@ separate .jpg file.
 Optionally (with --with-pie-charts), also draws a half-donut "arc" chart per
 poll showing the expected number of women/men split across the opposition
 and coalition blocs, using the party -> bloc mapping in mapping.csv (columns:
-מפלגה, גוש).
+מפלגה, גוש). With --bloc-chart-style bars (or both), draws a bloc bar chart
+instead of (or as well as) the arc.
 
 Optionally (with --create-email-drafts), also creates a Gmail DRAFT (never
 sent automatically) per outlet, summarizing that poll and attaching its
@@ -29,7 +30,9 @@ Requirements:
 
 Usage:
     python plot_women_by_outlet.py [--input-dir DIR] [--output-dir DIR]
-                                    [--with-pie-charts] [--mapping-csv FILE]
+                                    [--with-pie-charts]
+                                    [--bloc-chart-style {arc,bars,both}]
+                                    [--mapping-csv FILE]
                                     [--create-email-drafts]
                                     [--gmail-app-password PASSWORD]
 
@@ -41,6 +44,10 @@ Usage:
                             the input directory).
     --with-pie-charts       Also generate a per-poll pie chart of expected
                             women by bloc (optional; off by default).
+    --bloc-chart-style      Which bloc chart --with-pie-charts draws: "arc"
+                            (half-donut, women_by_bloc_*.jpg -- the
+                            default), "bars" (bloc bar chart,
+                            women_by_bloc_bars_*.jpg) or "both".
     --mapping-csv           Path to the party -> bloc mapping CSV (defaults
                             to mapping.csv inside --input-dir). Used with
                             --with-pie-charts and/or --create-email-drafts.
@@ -554,6 +561,114 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
     }
 
 
+# --- Bloc bar chart (alternative to the arc, --bloc-chart-style) ----------
+# Per the approved bloc_bar_chart_preview_v2 design: one big bar per bloc
+# (ימין+חרדים, שינוי) with the women count inside the bar, and the
+# reservists + unmapped parties (e.g. המשותפת) as small bars side by side
+# underneath, each with its own seats/women count. Python precomputes every
+# number/width; bloc_bar_chart.html.j2 only lays them out.
+BLOC_BAR_CHART_WIDTH = 720
+BLOC_BAR_AREA_WIDTH = 472
+# Bars are scaled so this many seats fill the bar area (minus an 8px
+# margin) -- a fixed scale keeps bar lengths comparable across polls; it
+# only grows if a bloc ever has more seats than this.
+BLOC_BAR_SCALE_SEATS = 68
+BLOC_BAR_OUTLET_LOGO_WIDTH = 135
+BLOC_BAR_LOGO_WIDTH = 215
+BLOC_BAR_LOGO_HEIGHT = 127
+
+BLOC_BAR_COALITION_LABEL = "ימין+חרדים"
+BLOC_BAR_CHANGE_LABEL = "שינוי"
+# Small-bar labels are shortened further than _chart_display_name (the
+# legend keeps the display name).
+BLOC_BAR_SMALL_LABELS = {"הרשימה המשותפת": "המשותפת"}
+
+BLOC_COLOR_COALITION_WOMEN = "#a51c30"
+BLOC_COLOR_COALITION_MEN = "#ff6384"
+BLOC_COLOR_CHANGE_WOMEN = "#00b4dd"
+BLOC_COLOR_CHANGE_MEN = "#8fd0ff"
+BLOC_COLOR_OTHER_WOMEN = "#3f4659"   # unmapped parties (e.g. הרשימה המשותפת)
+BLOC_COLOR_OTHER_MEN = "#8a93aa"
+BLOC_COLOR_RESERVISTS_WOMEN = "#5b6b2e"
+BLOC_COLOR_RESERVISTS_MEN = "#b3c07e"
+
+
+def _women_word(n: int) -> str:
+    return "אישה" if n == 1 else "נשים"
+
+
+def build_bloc_bar_chart_data(opp_women: int, opp_men: int, coal_women: int,
+                               coal_men: int, other_parts: list,
+                               res_women: int, res_men: int,
+                               title_line1: str, title_line2: str,
+                               logo_data_uri: str, outlet_name: str = None,
+                               poll_date_str: str = None) -> dict:
+    """Everything bloc_bar_chart.html.j2 needs. other_parts: list of
+    (raw party name, women, men) for the unmapped parties with seats > 0.
+    The reservists' small bar is only included when they have seats."""
+    main_rows = [
+        {"label": BLOC_BAR_COALITION_LABEL, "women": coal_women, "men": coal_men,
+         "women_color": BLOC_COLOR_COALITION_WOMEN, "men_color": BLOC_COLOR_COALITION_MEN},
+        {"label": BLOC_BAR_CHANGE_LABEL, "women": opp_women, "men": opp_men,
+         "women_color": BLOC_COLOR_CHANGE_WOMEN, "men_color": BLOC_COLOR_CHANGE_MEN},
+    ]
+    legend = [
+        {"name": BLOC_BAR_COALITION_LABEL, "women_color": BLOC_COLOR_COALITION_WOMEN,
+         "men_color": BLOC_COLOR_COALITION_MEN},
+        {"name": BLOC_BAR_CHANGE_LABEL, "women_color": BLOC_COLOR_CHANGE_WOMEN,
+         "men_color": BLOC_COLOR_CHANGE_MEN},
+    ]
+
+    small_groups = []
+    if res_women + res_men > 0:
+        small_groups.append({
+            "label": _chart_display_name(RESERVISTS_PARTY_NAME),
+            "women": res_women, "men": res_men,
+            "women_color": BLOC_COLOR_RESERVISTS_WOMEN, "men_color": BLOC_COLOR_RESERVISTS_MEN,
+        })
+    for party, w, m in other_parts:
+        display = _chart_display_name(party)
+        small_groups.append({
+            "label": BLOC_BAR_SMALL_LABELS.get(display, display),
+            "women": w, "men": m,
+            "women_color": BLOC_COLOR_OTHER_WOMEN, "men_color": BLOC_COLOR_OTHER_MEN,
+        })
+        legend.append({"name": display, "women_color": BLOC_COLOR_OTHER_WOMEN,
+                       "men_color": BLOC_COLOR_OTHER_MEN})
+    if res_women + res_men > 0:
+        legend.append({"name": _chart_display_name(RESERVISTS_PARTY_NAME),
+                       "women_color": BLOC_COLOR_RESERVISTS_WOMEN,
+                       "men_color": BLOC_COLOR_RESERVISTS_MEN})
+
+    scale_seats = max([BLOC_BAR_SCALE_SEATS]
+                      + [r["women"] + r["men"] for r in main_rows + small_groups])
+    seat_px = (BLOC_BAR_AREA_WIDTH - 8) / scale_seats
+    for r in main_rows + small_groups:
+        r["seats"] = r["women"] + r["men"]
+        r["width_px"] = r["seats"] * seat_px
+        r["count_word"] = _women_word(r["women"])
+
+    total_women = (coal_women + opp_women + res_women
+                   + sum(w for _, w, _ in other_parts))
+
+    return {
+        "chart_width": BLOC_BAR_CHART_WIDTH,
+        "total_women": total_women,
+        "main_rows": main_rows,
+        "small_groups": small_groups,
+        "legend": legend,
+        "title_line1": title_line1,
+        "title_line2": title_line2,
+        "outlet_name": outlet_name,
+        "poll_date_str": poll_date_str,
+        "outlet_logo_data_uri": _outlet_logo_data_uri(outlet_name) if outlet_name else None,
+        "outlet_logo_width": BLOC_BAR_OUTLET_LOGO_WIDTH,
+        "logo_data_uri": logo_data_uri,
+        "logo_width": BLOC_BAR_LOGO_WIDTH,
+        "logo_height": BLOC_BAR_LOGO_HEIGHT,
+    }
+
+
 # --- HTML/SVG rendering (Jinja2 + headless Chromium) -----------------------
 
 _JINJA_ENV = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)))
@@ -761,6 +876,15 @@ def render_arc_chart_html(arc_data: dict, out_path: Path) -> None:
                                 css_height=None, anchor="center")
 
 
+def render_bloc_bar_chart_html(bar_data: dict, out_path: Path) -> None:
+    template = _JINJA_ENV.get_template("bloc_bar_chart.html.j2")
+    html = template.render(**bar_data, **_heebo_data_uris())
+    # Fixed-width layout (chart_width), so no viewport widening is needed
+    # for the outlet logo -- the header row already reserves room for it.
+    _render_html_to_square_jpg(html, out_path, css_width=bar_data["chart_width"],
+                                css_height=None, anchor="center")
+
+
 def find_latest_workbook(input_dir: Path) -> Path:
     candidates = []
     for f in input_dir.glob("party-comparison-updated-v*.xlsx"):
@@ -912,9 +1036,12 @@ def plot_mean_poll(df_mean: pd.DataFrame, out_path: Path) -> None:
 
 def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_line1: str,
                        title_line2: str, out_path: Path, skip_label: str,
-                       outlet_name: str = None, poll_date_str: str = None) -> bool:
-    """Shared arc (half-donut) bloc-chart renderer (arc_chart.html.j2), used
-    for both per-outlet polls and the mean-poll aggregate. Splits seats into
+                       outlet_name: str = None, poll_date_str: str = None,
+                       style: str = "arc") -> bool:
+    """Shared bloc-chart renderer, used for both per-outlet polls and the
+    mean-poll aggregate. style="arc" draws the half-donut (arc_chart.html.j2),
+    style="bars" the bloc bar chart (bloc_bar_chart.html.j2, see
+    build_bloc_bar_chart_data) from the same bloc split. Splits seats into
     opposition/coalition men+women; any party whose mapped group is not
     exactly OPPOSITION_GROUP_NAME/COALITION_GROUP_NAME (missing from
     mapping.csv, or mapped to some other/self-referential group) is gender-
@@ -927,13 +1054,14 @@ def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_line1: str,
     total_women = int(df[COL_WOMEN].sum())
 
     if total_women == 0:
-        print(f"  skipping pie chart for {skip_label}: 0 expected women")
+        print(f"  skipping bloc chart ({style}) for {skip_label}: 0 expected women")
         return False
 
     opp_women = opp_men = coal_women = coal_men = 0
     gray_men = gray_women = 0
     res_men = res_women = 0
     gray_parties = []
+    other_parts = []  # (raw party name, women, men) of gray parties with seats
     for _, row in df.iterrows():
         party = row[COL_PARTY]
         w, m = int(row[COL_WOMEN]), int(row[COL_MEN])
@@ -953,6 +1081,19 @@ def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_line1: str,
             gray_women += w
             if w + m > 0:
                 gray_parties.append(_chart_display_name(party))
+                other_parts.append((party, w, m))
+
+    if style == "bars":
+        bar_data = build_bloc_bar_chart_data(
+            opp_women=opp_women, opp_men=opp_men,
+            coal_women=coal_women, coal_men=coal_men,
+            other_parts=other_parts, res_women=res_women, res_men=res_men,
+            title_line1=title_line1, title_line2=title_line2,
+            logo_data_uri=_logo_data_uri(),
+            outlet_name=outlet_name, poll_date_str=poll_date_str,
+        )
+        render_bloc_bar_chart_html(bar_data, out_path)
+        return True
 
     if gray_parties:
         print(f"  note: unmapped, gender-split into two gray segments (men "
@@ -978,7 +1119,7 @@ def render_bloc_chart(df: pd.DataFrame, mapping: dict, title_line1: str,
 
 
 def plot_pie_poll(df_poll: pd.DataFrame, outlet: str, date_raw, mapping: dict,
-                   out_path: Path) -> bool:
+                   out_path: Path, style: str = "arc") -> bool:
     """Arc/bloc chart for a single outlet's poll. Returns False (writing
     nothing) if there are 0 expected women overall. Title block is the same
     headline + poll/date subhead as the matching bar chart (build_bar_headline
@@ -988,10 +1129,12 @@ def plot_pie_poll(df_poll: pd.DataFrame, outlet: str, date_raw, mapping: dict,
     title_line2 = build_bar_subheadline(outlet, date_raw)
     return render_bloc_chart(df_poll, mapping, title_line1, title_line2, out_path,
                               skip_label=f"{outlet} ({date_str})",
-                              outlet_name=outlet, poll_date_str=format_date_short(date_raw))
+                              outlet_name=outlet, poll_date_str=format_date_short(date_raw),
+                              style=style)
 
 
-def plot_mean_pie_poll(df_mean: pd.DataFrame, mapping: dict, out_path: Path) -> bool:
+def plot_mean_pie_poll(df_mean: pd.DataFrame, mapping: dict, out_path: Path,
+                        style: str = "arc") -> bool:
     """Arc/bloc chart for the aggregate 'mean poll' (average-of-polls)
     estimate in the חישוב 2026 sheet, with the trailing totals row (סה"כ)
     excluded first. Returns False (writing nothing) if there are 0 expected
@@ -1000,7 +1143,7 @@ def plot_mean_pie_poll(df_mean: pd.DataFrame, mapping: dict, out_path: Path) -> 
     title_line1 = build_bar_headline()
     title_line2 = build_bar_subheadline_mean()
     return render_bloc_chart(df, mapping, title_line1, title_line2, out_path,
-                              skip_label="ממוצע הסקרים")
+                              skip_label="ממוצע הסקרים", style=style)
 
 
 def compute_poll_email_stats(df_poll: pd.DataFrame, mapping: dict) -> dict:
@@ -1176,6 +1319,12 @@ def main():
     parser.add_argument("--with-pie-charts", action="store_true",
                          help="Also generate a per-poll pie chart of expected "
                               "women by bloc (needs mapping.csv)")
+    parser.add_argument("--bloc-chart-style", choices=["arc", "bars", "both"],
+                         default="arc",
+                         help="Which bloc chart(s) --with-pie-charts draws: "
+                              "the half-donut arc (women_by_bloc_*.jpg, the "
+                              "default), the bloc bar chart "
+                              "(women_by_bloc_bars_*.jpg), or both")
     parser.add_argument("--mapping-csv", default=None,
                          help="Path to the party -> bloc mapping CSV "
                               "(defaults to mapping.csv inside --input-dir)")
@@ -1264,6 +1413,12 @@ def main():
         print(f"Using bloc mapping: {mapping_csv.name} "
               f"({len(set(mapping.values()))} blocs, {len(mapping)} parties)")
 
+    # (file-name prefix, style) for each bloc chart to draw
+    bloc_styles = {"arc": [("women_by_bloc", "arc")],
+                   "bars": [("women_by_bloc_bars", "bars")],
+                   "both": [("women_by_bloc", "arc"), ("women_by_bloc_bars", "bars")],
+                   }[args.bloc_chart_style]
+
     # Preserve the order in which outlet/date polls first appear in the sheet
     polls = df[[COL_OUTLET, COL_DATE]].drop_duplicates().itertuples(index=False)
 
@@ -1287,18 +1442,20 @@ def main():
             plot_poll(df_poll, outlet, date_raw, out_path)
             print(f"  wrote {out_path.name}")
 
-        pie_out_path = None
+        bloc_out_paths = []
         if mapping is not None:
-            pie_fname = f"women_by_bloc_{sanitize_filename(outlet)}_{date_str.replace('.', '-')}.jpg"
-            pie_out_path = output_dir / pie_fname
-            if pie_out_path.exists():
-                print(f"  skipping {pie_out_path.name}: already exists (not a new poll)")
-            else:
-                plot_pie_poll(df_poll, outlet, date_raw, mapping, pie_out_path)
+            for prefix, style in bloc_styles:
+                pie_fname = f"{prefix}_{sanitize_filename(outlet)}_{date_str.replace('.', '-')}.jpg"
+                pie_out_path = output_dir / pie_fname
                 if pie_out_path.exists():
-                    print(f"  wrote {pie_out_path.name}")
-            if not pie_out_path.exists():
-                pie_out_path = None  # 0-women poll: plot_pie_poll always skips these
+                    print(f"  skipping {pie_out_path.name}: already exists (not a new poll)")
+                else:
+                    plot_pie_poll(df_poll, outlet, date_raw, mapping, pie_out_path, style=style)
+                    if pie_out_path.exists():
+                        print(f"  wrote {pie_out_path.name}")
+                # 0-women poll: plot_pie_poll always skips these
+                if pie_out_path.exists():
+                    bloc_out_paths.append(pie_out_path)
 
         if args.create_email_drafts:
             if df_poll.empty or df_poll[COL_WOMEN].sum() == 0:
@@ -1307,7 +1464,7 @@ def main():
             stats = compute_poll_email_stats(df_poll, mapping)
             subject = build_email_subject(outlet, date_str)
             body = build_email_body(outlet, date_str, stats)
-            attachments = [out_path] + ([pie_out_path] if pie_out_path else [])
+            attachments = [out_path] + bloc_out_paths
             msg = build_email_message(subject, body, attachments)
             save_gmail_draft(msg, app_password)
             print(f"  created email draft: {subject}")
@@ -1322,9 +1479,10 @@ def main():
     print(f"  wrote {mean_out_path.name}")
 
     if mapping is not None:
-        mean_pie_out_path = output_dir / "women_by_bloc_ממוצע_סקרים.jpg"
-        if plot_mean_pie_poll(df_mean, mapping, mean_pie_out_path):
-            print(f"  wrote {mean_pie_out_path.name}")
+        for prefix, style in bloc_styles:
+            mean_pie_out_path = output_dir / f"{prefix}_ממוצע_סקרים.jpg"
+            if plot_mean_pie_poll(df_mean, mapping, mean_pie_out_path, style=style):
+                print(f"  wrote {mean_pie_out_path.name}")
 
     print("Done.")
 
