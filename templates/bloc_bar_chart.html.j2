@@ -1,34 +1,22 @@
 {#
-  Stacked bloc bar chart — replaces arc_chart.html.j2.
+  Bloc bar chart (per bloc_bar_chart_preview_v2) -- the alternative to
+  arc_chart.html.j2, picked with --bloc-chart-style bars|both.
 
   Header / font / logo variables are the same as arc_chart.html.j2:
     heebo_regular_data_uri, heebo_bold_data_uri,
     title_line1, title_line2, outlet_name, outlet_logo_data_uri, outlet_logo_width,
     poll_date_str, logo_data_uri, logo_width, logo_height
 
-  New variable — rows (one bar per row; parts are stacked inside the bar, right to left):
-    rows = [
-      {"label": "ימין+חרדים", "parts": [
-          {"name": "ימין+חרדים", "seats": 52, "women": 7, "women_color": "#a51c30", "men_color": "#ff6384"}]},
-      {"label": "שינוי+משותפת", "parts": [
-          {"name": "שינוי",   "seats": 58, "women": 25, "women_color": "#00b4dd", "men_color": "#8fd0ff"},
-          {"name": "משותפת", "seats": 6,  "women": 0,  "women_color": "#3f4659", "men_color": "#8a93aa"}]},
-      {"label": "המילואימניקים", "parts": [
-          {"name": "מילואימניקים", "seats": 4, "women": 1, "women_color": "#5b6b2e", "men_color": "#b3c07e"}]},
-    ]
-  Optional: women_text_color per part (defaults to women_color; use a darker shade for light colors, e.g. "#00779a" for שינוי),
-            chart_width (default 720), bar_area_width (default 472).
-  Everything else (bar lengths, totals, legend) is computed here.
+  Everything else is precomputed by build_bloc_bar_chart_data() in
+  plot_women_by_outlet.py:
+    chart_width, total_women,
+    main_rows    -- one big bar per bloc (ימין+חרדים, שינוי):
+                    {label, seats, women, men, width_px, women_color, men_color, count_word}
+    small_groups -- the reservists + unmapped parties (e.g. המשותפת), drawn
+                    as small bars side by side under the bloc rows:
+                    {label, seats, women, men, width_px, women_color, men_color, count_word}
+    legend       -- {name, women_color, men_color}
 #}
-{% set chart_width = chart_width | default(720) %}
-{% set bar_area_width = bar_area_width | default(472) %}
-{% set ns = namespace(max_seats=0, total_women=0) %}
-{% for row in rows %}
-  {% set s = row.parts | sum(attribute='seats') %}
-  {% if s > ns.max_seats %}{% set ns.max_seats = s %}{% endif %}
-  {% set ns.total_women = ns.total_women + (row.parts | sum(attribute='women')) %}
-{% endfor %}
-{% set seat_px = (bar_area_width - 8) / ns.max_seats %}
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
@@ -71,24 +59,35 @@
 
   .total { font-size: 26px; font-weight: 700; }
 
-  .rows { display: flex; flex-direction: column; gap: 22px; }
-  .row {
+  .rows {
     display: grid;
-    grid-template-columns: 170px minmax(0, 1fr);
-    column-gap: 14px;
-    align-items: center;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 12px; row-gap: 22px;
+    align-items: start;
   }
+  .row { display: contents; }
   .row-name {
     display: flex; flex-direction: column; justify-content: center;
-    min-height: 56px; padding-left: 12px; border-left: 3px solid #000;
+    align-items: flex-start;
+    height: 44px;
   }
-  .row-label { font-size: 19px; font-weight: 700; line-height: 1.2; }
+  .row-label { font-size: 28px; font-weight: 700; line-height: 1.2; }
   .row-seats { font-size: 16px; }
   .row-body { display: flex; flex-direction: column; gap: 6px; }
   .bar { height: 44px; display: flex; gap: 3px; }
   .part { display: flex; }
-  .count { font-size: 17px; }
+  .count { font-size: 17px; padding-right: 8px; }
+  .women-seg { display: flex; align-items: center; padding-right: 8px; min-width: 0; }
+  .women-seg b { color: #fff; font-size: 26px; font-weight: 700; line-height: 1; }
   .count b { font-size: 24px; font-weight: 700; }
+
+  .small-groups { display: flex; align-items: flex-start; gap: 48px; }
+  .small-group { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .small-group .bar { gap: 0; margin-bottom: 6px; }
+  .small-label { font-size: 15px; font-weight: 700; line-height: 1.2; }
+  .small-seats { font-size: 14px; }
+  .small-count { font-size: 15px; }
+  .small-count b { font-size: 19px; font-weight: 700; }
 
   .footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
   .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: 15px; }
@@ -115,45 +114,61 @@
   </div>
   {% endif %}
 
-  <div class="total">סה"כ {{ ns.total_women }} חברות כנסת</div>
+  <div class="total">סה"כ {{ total_women }} חברות כנסת</div>
 
   <div class="rows">
-    {% for row in rows %}
-    {% set seats = row.parts | sum(attribute='seats') %}
-    {% set women = row.parts | sum(attribute='women') %}
-    {% set gaps = (row.parts | length) - 1 %}
+    {% for row in main_rows %}
     <div class="row">
       <div class="row-name">
         <span class="row-label">{{ row.label }}</span>
-        <span class="row-seats">{{ seats }} מושבים</span>
+        <span class="row-seats">{{ row.seats }} מושבים</span>
       </div>
       <div class="row-body">
-        <div class="bar" style="width: {{ '%.1f' | format(seats * seat_px + gaps * 3) }}px;">
-          {% for p in row.parts %}
-          <div class="part" style="flex: {{ p.seats }} 1 0px;">
-            {% if p.women > 0 %}<div style="flex: {{ p.women }} 1 0px; background: {{ p.women_color }};"></div>{% endif %}
-            {% if p.seats - p.women > 0 %}<div style="flex: {{ p.seats - p.women }} 1 0px; background: {{ p.men_color }};"></div>{% endif %}
+        <div class="bar" style="width: {{ '%.1f' | format(row.width_px) }}px;">
+          <div class="part" style="flex: {{ row.seats }} 1 0px;">
+            {% if row.women > 0 %}<div class="women-seg" style="flex: {{ row.women }} 1 0px; background: {{ row.women_color }};"><b>{{ row.women }}</b></div>{% endif %}
+            {% if row.men > 0 %}<div style="flex: {{ row.men }} 1 0px; background: {{ row.men_color }};"></div>{% endif %}
           </div>
-          {% endfor %}
         </div>
-        <div class="count">
-          <b style="color: {{ row.parts[0].women_text_color | default(row.parts[0].women_color) }};">{{ women }}</b>
-          {{ 'אישה' if women == 1 else 'נשים' }}
-        </div>
+        <div class="count">{{ row.count_word }}</div>
       </div>
     </div>
     {% endfor %}
+
+    {% if small_groups %}
+    <div class="row">
+      <div></div>
+      <div class="row-body">
+        <div class="small-groups">
+          {% for g in small_groups %}
+          <div class="small-group">
+            <div class="bar" style="width: {{ '%.1f' | format(g.width_px) }}px;">
+              {% if g.women > 0 %}<div style="flex: {{ g.women }} 1 0px; background: {{ g.women_color }};"></div>{% endif %}
+              {% if g.men > 0 %}<div style="flex: {{ g.men }} 1 0px; background: {{ g.men_color }};"></div>{% endif %}
+            </div>
+            <span class="small-label">{{ g.label }}</span>
+            <span class="small-seats">{{ g.seats }} מושבים</span>
+            <div class="small-count">
+              <b style="color: {{ g.women_color }};">{{ g.women }}</b>
+              {{ g.count_word }}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <div class="footer">
     <div class="legend">
-      {% for row in rows %}{% for p in row.parts %}
+      {% for item in legend %}
       <div class="legend-item">
-        <span class="sw" style="background: {{ p.women_color }};"></span>
-        <span class="sw" style="background: {{ p.men_color }};"></span>
-        <span>{{ p.name }}</span>
+        <span class="sw" style="background: {{ item.women_color }};"></span>
+        <span class="sw" style="background: {{ item.men_color }};"></span>
+        <span>{{ item.name }}</span>
       </div>
-      {% endfor %}{% endfor %}
+      {% endfor %}
       <span class="legend-note">כהה = נשים · בהיר = גברים</span>
     </div>
     {% if logo_data_uri %}<img class="logo" src="{{ logo_data_uri }}" alt="5050">{% endif %}
