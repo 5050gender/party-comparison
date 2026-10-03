@@ -606,17 +606,18 @@ def build_bloc_bar_chart_data(opp_women: int, opp_men: int, coal_women: int,
     """Everything bloc_bar_chart.html.j2 needs. other_parts: list of
     (raw party name, women, men) for the unmapped parties with seats > 0.
     The reservists' small bar is only included when they have seats."""
+    # שינוי is the top bar; the legend follows the same order.
     main_rows = [
-        {"label": BLOC_BAR_COALITION_LABEL, "women": coal_women, "men": coal_men,
-         "women_color": BLOC_COLOR_COALITION_WOMEN, "men_color": BLOC_COLOR_COALITION_MEN},
         {"label": BLOC_BAR_CHANGE_LABEL, "women": opp_women, "men": opp_men,
          "women_color": BLOC_COLOR_CHANGE_WOMEN, "men_color": BLOC_COLOR_CHANGE_MEN},
+        {"label": BLOC_BAR_COALITION_LABEL, "women": coal_women, "men": coal_men,
+         "women_color": BLOC_COLOR_COALITION_WOMEN, "men_color": BLOC_COLOR_COALITION_MEN},
     ]
     legend = [
-        {"name": BLOC_BAR_COALITION_LABEL, "women_color": BLOC_COLOR_COALITION_WOMEN,
-         "men_color": BLOC_COLOR_COALITION_MEN},
         {"name": BLOC_BAR_CHANGE_LABEL, "women_color": BLOC_COLOR_CHANGE_WOMEN,
          "men_color": BLOC_COLOR_CHANGE_MEN},
+        {"name": BLOC_BAR_COALITION_LABEL, "women_color": BLOC_COLOR_COALITION_WOMEN,
+         "men_color": BLOC_COLOR_COALITION_MEN},
     ]
 
     small_groups = []
