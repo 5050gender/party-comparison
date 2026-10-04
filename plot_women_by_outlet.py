@@ -583,14 +583,14 @@ BLOC_BAR_CHANGE_LABEL = "שינוי"
 # legend keeps the display name).
 BLOC_BAR_SMALL_LABELS = {"הרשימה המשותפת": "המשותפת"}
 
-BLOC_COLOR_COALITION_WOMEN = "#a51c30"
-BLOC_COLOR_COALITION_MEN = "#ff6384"
-BLOC_COLOR_CHANGE_WOMEN = "#00b4dd"
+BLOC_COLOR_COALITION_WOMEN = "#a3404f"
+BLOC_COLOR_COALITION_MEN = "#ffa3b5"
+BLOC_COLOR_CHANGE_WOMEN = "#0a84ff"
 BLOC_COLOR_CHANGE_MEN = "#8fd0ff"
 BLOC_COLOR_OTHER_WOMEN = "#3f4659"   # unmapped parties (e.g. הרשימה המשותפת)
 BLOC_COLOR_OTHER_MEN = "#8a93aa"
 BLOC_COLOR_RESERVISTS_WOMEN = "#5b6b2e"
-BLOC_COLOR_RESERVISTS_MEN = "#b3c07e"
+BLOC_COLOR_RESERVISTS_MEN = "#b3c07e "
 
 
 def _women_word(n: int) -> str:
