@@ -1154,15 +1154,14 @@ def compute_poll_email_stats(df_poll: pd.DataFrame, mapping: dict) -> dict:
     email clients do their own bidi rendering, so reordering here would
     show up backwards.
 
-    The email breaks women down into three groups: "change_bloc_women"
-    ("גוש השינוי + המשותפת") folds in the opposition plus any unmapped/"gray"
-    party OTHER than the reservists' (parties not mapped to exactly
-    OPPOSITION_GROUP_NAME or COALITION_GROUP_NAME -- currently just הרשימה
-    המשותפת, since RESERVISTS_PARTY_NAME is carved out below -- but any
-    other future unmapped party would land here too, same as before);
-    "coalition_bloc_women" ("ימין־חרדים") is unchanged; and
-    "reservists_women" ("מילואימניקים") is now its own line, broken out by
-    RESERVISTS_PARTY_NAME rather than folded into the change bloc."""
+    The email breaks women down into the same four groups as the bloc bar
+    chart (see build_bloc_bar_chart_data): "change_bloc_women" ("גוש
+    השינוי") is the opposition alone; "coalition_bloc_women" ("ימין־
+    חרדים"); "reservists_women" (RESERVISTS_PARTY_NAME); and
+    "other_gray_women" ("הרשימה המשותפת") -- every party not mapped to
+    exactly OPPOSITION_GROUP_NAME or COALITION_GROUP_NAME, other than the
+    reservists' (currently just הרשימה המשותפת, but any future unmapped
+    party would land here too)."""
     women_by_party = df_poll.set_index(COL_PARTY)[COL_WOMEN]
     leading_party = women_by_party.idxmax()
     leading_women = int(women_by_party.max())
@@ -1185,7 +1184,7 @@ def compute_poll_email_stats(df_poll: pd.DataFrame, mapping: dict) -> dict:
         "coalition_women": coalition_women,
         "reservists_women": reservists_women,
         "other_gray_women": other_gray_women,
-        "change_bloc_women": opposition_women + other_gray_women,
+        "change_bloc_women": opposition_women,
         "coalition_bloc_women": coalition_women,
         "total_women": total_women,
     }
@@ -1228,27 +1227,46 @@ def _load_email_template() -> tuple:
     return subject_template, body_template
 
 
-def _fill_sequential(text: str, placeholder: str, values: list) -> str:
+def _fill_numbers_dropping_zero_lines(text: str, placeholder: str, values: list) -> str:
     """Replace successive occurrences of `placeholder` with each value from
-    `values`, in order -- used for the email template's repeated [מספר]
-    placeholder, which stands for a different number each time it appears.
-    A mismatched count (template edited to add/remove a placeholder) is
-    reported rather than silently filling in the wrong number; unmatched
-    placeholders beyond len(values) are left as literal text."""
+    `values`, in order -- the email template's repeated [מספר] placeholder
+    stands for a different number each time it appears. A mismatched count
+    (template edited to add/remove a placeholder) is reported rather than
+    silently ignored; unmatched placeholders are left as literal text.
+
+    values are (value, droppable) pairs: a line whose placeholder gets a
+    droppable 0 is removed entirely. After
+    dropping, a line ending in ";" that is now the last of its list (next
+    line blank, or end of text) gets a "." instead, so the bloc list still
+    ends with a period whichever lines remain."""
     count = text.count(placeholder)
     if count != len(values):
         print(f'  warning: email template has {count} "{placeholder}" '
               f'placeholder(s) but {len(values)} value(s) were expected; '
               f'filling in order, any extra placeholders are left as-is')
     values_iter = iter(values)
+    out_lines = []
+    for line in text.split("\n"):
+        drop = False
+        parts = line.split(placeholder)
+        filled = parts[0]
+        for rest in parts[1:]:
+            try:
+                value, droppable = next(values_iter)
+            except StopIteration:
+                filled += placeholder + rest
+                continue
+            if droppable and value == 0:
+                drop = True
+            filled += str(value) + rest
+        if not drop:
+            out_lines.append(filled)
 
-    def _replace(_match):
-        try:
-            return str(next(values_iter))
-        except StopIteration:
-            return _match.group(0)
-
-    return re.sub(re.escape(placeholder), _replace, text)
+    for i, line in enumerate(out_lines):
+        is_last_in_list = i + 1 == len(out_lines) or not out_lines[i + 1].strip()
+        if line.rstrip().endswith(";") and is_last_in_list:
+            out_lines[i] = line.rstrip()[:-1] + "."
+    return "\n".join(out_lines)
 
 
 def build_email_subject(outlet: str, date_str: str) -> str:
@@ -1264,12 +1282,16 @@ def build_email_body(outlet: str, date_str: str, stats: dict) -> str:
     body = body.replace("[שם הערוץ]", outlet)
     body = body.replace("[תאריך]", date_str)
     body = body.replace("[שם המפלגה]", stats["leading_party"])
-    body = _fill_sequential(body, "[מספר]", [
-        stats["leading_women"],
-        stats["change_bloc_women"],
-        stats["coalition_bloc_women"],
-        stats["reservists_women"],
-        stats["total_women"],
+    # (value, drop the line when 0): the four bloc lines are dropped when
+    # that group has no women in this poll (which covers having no seats at
+    # all), same as the bloc bar chart leaving out empty groups.
+    body = _fill_numbers_dropping_zero_lines(body, "[מספר]", [
+        (stats["leading_women"], False),
+        (stats["change_bloc_women"], True),
+        (stats["coalition_bloc_women"], True),
+        (stats["reservists_women"], True),
+        (stats["other_gray_women"], True),
+        (stats["total_women"], False),
     ])
     # Every "[מספר]" above is immediately followed by the literal word
     # "נשים" in the template text (see text_for_email.txt), so "1 נשים" can
