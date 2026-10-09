@@ -10,7 +10,7 @@ An interactive HTML page comparing Israeli political parties ahead of the 2026 K
 The main deliverable - a single self-contained HTML page (party, poll and channel data embedded inline as JS constants: `PARTIES`, `CHANNELS`, `CHANNEL_DATA`, `LOGOS`). Served via GitHub Pages at the live URL above; can also be embedded in an iframe.
 
 ### party-comparison-updated-vNN.xlsx
-The data workbook backing the page (v42 is current; older versions are kept for history). Key tabs:
+The data workbook backing the page (the highest vNN is current; older versions are kept for history). Key tabs:
 - `סקר 2026` - overall seat survey
 - `מועמדים 2026` - per-party candidate lists with gender
 - `חישוב 2026` - computed current/expected women counts and percentages
@@ -18,13 +18,19 @@ The data workbook backing the page (v42 is current; older versions are kept for 
 - `חישוב לפי ערוץ` - per-channel computed women counts and percentages
 
 ### mapping.csv
-Party -> bloc mapping (`אופוזיציה` / `קואליציה`) used by `plot_women_by_outlet.py`'s `--with-pie-charts` and `--create-email-drafts`. A party that's missing here, or mapped to anything other than those two exact values, is drawn as its own gray "unmapped" segment in the arc chart and folded into the גוש השינוי total.
+Party -> bloc mapping (`אופוזיציה` / `קואליציה`) used by `plot_women_by_outlet.py`'s `--with-pie-charts` and `--create-email-drafts`. Two kinds of party get special treatment in the bloc charts and emails:
+- **The reservists' party** (`המילואימניקים-הכלכלית`, set by `RESERVISTS_PARTY_NAME` in the script) is always shown on its own, whatever its mapping.
+- **Unmapped parties** - missing here, or mapped to anything other than those two exact values (currently הרשימה המשותפת) - are also shown on their own, in gray.
+
+In the arc chart both are counted in the `שינוי+משותפת` total; in the bloc bar chart and the email they get their own small bar / line instead (see below).
 
 ### templates/
 HTML/CSS/SVG chart templates used by `plot_women_by_outlet.py` and `preview_charts.py`:
 - `bar_chart.html.j2` - the per-party women/men seats bar chart
-- `arc_chart.html.j2` - the גוש השינוי vs. גוש ימין-חרדים arc (half-donut) chart
-- `assets/logo_5050.jpg` - the 5050 logo, overlaid on both charts
+- `arc_chart.html.j2` - the bloc arc (half-donut) chart: `שינוי+משותפת` vs. `ימין+חרדים`, with the reservists' and Joint List's women shown and arrowed into the total
+- `bloc_bar_chart.html.j2` - the bloc bar chart: one bar each for `שינוי` (on top) and `ימין+חרדים`, with the reservists and Joint List as small bars underneath
+- `assets/logo_5050.svg` - the 5050 logo used on the charts (`logo_5050.jpg` is an older copy)
+- `assets/outlet_logos/` - each outlet's logo, shown in the header of that outlet's charts
 - `assets/text_for_email.txt` - editable subject + body template for `--create-email-drafts` (see below)
 
 Edit these directly to change fonts, colors, spacing, or layout - `plot_women_by_outlet.py` only ever supplies the data that fills them in.
@@ -33,36 +39,46 @@ Edit these directly to change fonts, colors, spacing, or layout - `plot_women_by
 `Heebo-Regular.ttf` / `Heebo-Bold.ttf`, embedded into the rendered charts so they don't depend on the network at render time.
 
 ### graphs/
-Suggested output folder for the generated chart JPGs (pass `--output-dir graphs/` to `plot_women_by_outlet.py`).
+Suggested output folder for the generated chart JPGs (pass `--output-dir graphs/` to `plot_women_by_outlet.py`). Also holds the latest polling-average charts (`women_seats_avg.jpg`, `women_by_bloc_avg.jpg`, `women_by_bloc_bars_avg.jpg`).
 
 ## Scripts
 
 ### plot_women_by_outlet.py
-Generates the "how many women are expected in the next Knesset" social graphics from the workbook: a bar chart of expected women/men seats per party for each poll in `סקרים לפי ערוץ`/`חישוב לפי ערוץ` plus the aggregate mean-poll estimate, and (optionally) an arc chart of the גוש השינוי / גוש ימין-חרדים bloc split. Can also draft (never send) a per-outlet summary email in Gmail.
+Generates the "how many women are expected in the next Knesset" social graphics from the workbook: a bar chart of expected women/men seats per party for each poll in `סקרים לפי ערוץ`/`חישוב לפי ערוץ` plus the aggregate mean-poll estimate, and (optionally) a bloc chart - an arc, a bloc bar chart, or both. Can also draft (never send) a per-outlet summary email in Gmail.
 
 ```
-python plot_women_by_outlet.py [--input-dir DIR] [--output-dir DIR] [--with-pie-charts] [--mapping-csv PATH] [--create-email-drafts] [--gmail-app-password APP_PASSWORD]
+python plot_women_by_outlet.py [--input-dir DIR] [--output-dir DIR] [--with-pie-charts] [--bloc-chart-style {arc,bars,both}] [--mapping-csv PATH] [--create-email-drafts] [--gmail-app-password APP_PASSWORD]
 ```
 - `--input-dir` - folder containing `party-comparison-updated-vNN.xlsx` (defaults to the current folder; auto-picks the highest version number found there)
 - `--output-dir` - folder to write the `.jpg` files to (defaults to `--input-dir`; try `graphs/`)
-- `--with-pie-charts` - also generate the bloc arc chart for each poll (needs `mapping.csv`)
+- `--with-pie-charts` - also generate a bloc chart for each poll (needs `mapping.csv`)
+- `--bloc-chart-style` - which bloc chart `--with-pie-charts` draws: `arc` (the default, `women_by_bloc_*.jpg`), `bars` (`women_by_bloc_bars_*.jpg`) or `both`
 - `--mapping-csv` - path to the party -> bloc mapping CSV (defaults to `mapping.csv` inside `--input-dir`)
-- `--create-email-drafts` - also create a Gmail draft (never sent) per outlet, summarizing that poll and attaching its charts, built from `templates/assets/text_for_email.txt`. Needs `mapping.csv` (loaded automatically even without `--with-pie-charts`) and a Gmail App Password (`--gmail-app-password`, or the `GMAIL_APP_PASSWORD` environment variable - safer than passing it on the command line)
+- `--create-email-drafts` - also create a Gmail draft (never sent) per outlet, summarizing that poll and attaching its charts (every bloc chart that was drawn), built from `templates/assets/text_for_email.txt`. Needs `mapping.csv` (loaded automatically even without `--with-pie-charts`) and a Gmail App Password (`--gmail-app-password`, or the `GMAIL_APP_PASSWORD` environment variable - safer than passing it on the command line)
+
+Output files:
+- `women_seats_<outlet>_<date>.jpg` - per-party bar chart, one per poll
+- `women_by_bloc_<outlet>_<date>.jpg` / `women_by_bloc_bars_<outlet>_<date>.jpg` - bloc charts, one per poll
+- `..._ממוצע_סקרים.jpg` - the same charts for the polling average
+
+A poll's charts are skipped if their file already exists (a past poll's numbers don't change), so delete them to redraw after a design change. The polling-average charts are always redrawn.
+
+The email's "חלוקה לפי גושים" section lists women in the same groups as the bloc bar chart - `שינוי`, `ימין־חרדים`, `המילואימניקים`, `הרשימה המשותפת` - and drops any group with no women in that poll. Each line in `text_for_email.txt` has a `[מספר]` placeholder, filled in order; keep the placeholders when editing the wording. The file can be saved from Windows Notepad (UTF-16) or as UTF-8.
 
 Charts are drawn as HTML/CSS/SVG (see `templates/` above) and rendered to JPG with a headless browser (Playwright), not matplotlib - design tweaks belong in the templates, not this script.
 
 Requirements: `pip install pandas openpyxl jinja2 playwright pillow` and `playwright install chromium`.
 
 ### preview_charts.py
-A fast way to see template edits without a full run. Fills `templates/bar_chart.html.j2` and `templates/arc_chart.html.j2` with realistic sample data (no workbook needed) and writes plain, already-rendered `.html` files - skipping the JPG-rendering step entirely.
+A fast way to see template edits without a full run. Fills `templates/bar_chart.html.j2`, `templates/arc_chart.html.j2` and `templates/bloc_bar_chart.html.j2` with realistic sample data (no workbook needed) and writes plain, already-rendered `.html` files - skipping the JPG-rendering step entirely.
 
 ```
 python preview_charts.py
 ```
-Writes `preview/bar_chart_preview.html` and `preview/arc_chart_preview.html` and opens both in your default browser. Edit a template, re-run, refresh the tab.
+Writes `preview/bar_chart_preview.html`, `preview/arc_chart_preview.html` and `preview/bloc_bar_chart_preview.html` and opens them in your default browser. Edit a template, re-run, refresh the tab.
 
 ### extract_chart_parameters.py / apply_chart_parameters.py
-A round-trip pair for tweaking chart design (fonts, colors, sizes, spacing, fixed label text) as a spreadsheet instead of editing the templates/`plot_women_by_outlet.py` directly. Covers CSS in `bar_chart.html.j2`, SVG attributes in `arc_chart.html.j2`, and design constants in `plot_women_by_outlet.py` - never the workbook data.
+A round-trip pair for tweaking chart design (fonts, colors, sizes, spacing, fixed label text) as a spreadsheet instead of editing the templates/`plot_women_by_outlet.py` directly. Covers CSS in `bar_chart.html.j2`, SVG attributes in `arc_chart.html.j2`, and design constants in `plot_women_by_outlet.py` - never the workbook data. Does not cover `bloc_bar_chart.html.j2`; edit that template (and the `BLOC_BAR_*` / `BLOC_COLOR_*` constants in the script) directly.
 
 ```
 python extract_chart_parameters.py [OUTPUT_CSV]
