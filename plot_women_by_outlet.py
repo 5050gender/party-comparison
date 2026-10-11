@@ -45,9 +45,11 @@ Usage:
     --with-pie-charts       Also generate a per-poll pie chart of expected
                             women by bloc (optional; off by default).
     --bloc-chart-style      Which bloc chart --with-pie-charts draws: "arc"
-                            (half-donut, women_by_bloc_*.jpg -- the
+                            (half-donut, *_women_by_bloc_*.jpg -- the
                             default), "bars" (bloc bar chart,
-                            women_by_bloc_bars_*.jpg) or "both".
+                            *_women_by_bloc_bars_*.jpg) or "both".
+                            Files are named <YYYYMMDD>_<chart type>_<outlet or
+                            ממוצע_סקרים>.jpg.
     --mapping-csv           Path to the party -> bloc mapping CSV (defaults
                             to mapping.csv inside --input-dir). Used with
                             --with-pie-charts and/or --create-email-drafts.
@@ -921,6 +923,18 @@ def sanitize_filename(text: str) -> str:
     return text
 
 
+MEAN_POLL_FILE_LABEL = "ממוצע_סקרים"
+
+
+def chart_filename(date_raw, chart_type: str, label: str) -> str:
+    """<YYYYMMDD>_<chart type>_<outlet or ממוצע_סקרים>.jpg, e.g.
+    20261005_women_seats_חדשות_12.jpg -- the date first so files sort by
+    date, and the Hebrew part last so the mixed Hebrew/English name reads
+    cleanly. chart_type is women_seats / women_by_bloc / women_by_bloc_bars."""
+    date_part = pd.to_datetime(date_raw).strftime("%Y%m%d")
+    return f"{date_part}_{chart_type}_{sanitize_filename(label)}.jpg"
+
+
 # NOTE: unlike the old matplotlib charts, none of this text is pre-reordered
 # with a bidi helper -- the HTML templates set dir="rtl"/direction:rtl and
 # the browser applies the Unicode bidi algorithm itself. Pre-reordering here
@@ -1345,9 +1359,9 @@ def main():
     parser.add_argument("--bloc-chart-style", choices=["arc", "bars", "both"],
                          default="arc",
                          help="Which bloc chart(s) --with-pie-charts draws: "
-                              "the half-donut arc (women_by_bloc_*.jpg, the "
+                              "the half-donut arc (*_women_by_bloc_*.jpg, the "
                               "default), the bloc bar chart "
-                              "(women_by_bloc_bars_*.jpg), or both")
+                              "(*_women_by_bloc_bars_*.jpg), or both")
     parser.add_argument("--mapping-csv", default=None,
                          help="Path to the party -> bloc mapping CSV "
                               "(defaults to mapping.csv inside --input-dir)")
@@ -1436,7 +1450,7 @@ def main():
         print(f"Using bloc mapping: {mapping_csv.name} "
               f"({len(set(mapping.values()))} blocs, {len(mapping)} parties)")
 
-    # (file-name prefix, style) for each bloc chart to draw
+    # (chart type for the file name, style) for each bloc chart to draw
     bloc_styles = {"arc": [("women_by_bloc", "arc")],
                    "bars": [("women_by_bloc_bars", "bars")],
                    "both": [("women_by_bloc", "arc"), ("women_by_bloc_bars", "bars")],
@@ -1457,8 +1471,7 @@ def main():
         df_poll = df[(df[COL_OUTLET] == outlet) & (df[COL_DATE] == date_raw)]
         date_str = format_poll_date(date_raw)
 
-        fname = f"women_seats_{sanitize_filename(outlet)}_{date_str.replace('.', '-')}.jpg"
-        out_path = output_dir / fname
+        out_path = output_dir / chart_filename(date_raw, "women_seats", outlet)
         if out_path.exists():
             print(f"  skipping {out_path.name}: already exists (not a new poll)")
         else:
@@ -1467,9 +1480,8 @@ def main():
 
         bloc_out_paths = []
         if mapping is not None:
-            for prefix, style in bloc_styles:
-                pie_fname = f"{prefix}_{sanitize_filename(outlet)}_{date_str.replace('.', '-')}.jpg"
-                pie_out_path = output_dir / pie_fname
+            for chart_type, style in bloc_styles:
+                pie_out_path = output_dir / chart_filename(date_raw, chart_type, outlet)
                 if pie_out_path.exists():
                     print(f"  skipping {pie_out_path.name}: already exists (not a new poll)")
                 else:
@@ -1497,13 +1509,16 @@ def main():
     # since it's recomputed from every poll above and changes any time a
     # poll is added, unlike each individual poll's own fixed snapshot.
     df_mean = pd.read_excel(workbook_path, sheet_name=MEAN_SHEET_NAME)
-    mean_out_path = output_dir / "women_seats_ממוצע_סקרים.jpg"
+    # Dated with today's date -- the same date the mean chart's subtitle
+    # shows (build_bar_subheadline_mean).
+    run_date = datetime.now()
+    mean_out_path = output_dir / chart_filename(run_date, "women_seats", MEAN_POLL_FILE_LABEL)
     plot_mean_poll(df_mean, mean_out_path)
     print(f"  wrote {mean_out_path.name}")
 
     if mapping is not None:
-        for prefix, style in bloc_styles:
-            mean_pie_out_path = output_dir / f"{prefix}_ממוצע_סקרים.jpg"
+        for chart_type, style in bloc_styles:
+            mean_pie_out_path = output_dir / chart_filename(run_date, chart_type, MEAN_POLL_FILE_LABEL)
             if plot_mean_pie_poll(df_mean, mapping, mean_pie_out_path, style=style):
                 print(f"  wrote {mean_pie_out_path.name}")
 

@@ -52,16 +52,18 @@ python plot_women_by_outlet.py [--input-dir DIR] [--output-dir DIR] [--with-pie-
 - `--input-dir` - folder containing `party-comparison-updated-vNN.xlsx` (defaults to the current folder; auto-picks the highest version number found there)
 - `--output-dir` - folder to write the `.jpg` files to (defaults to `--input-dir`; try `graphs/`)
 - `--with-pie-charts` - also generate a bloc chart for each poll (needs `mapping.csv`)
-- `--bloc-chart-style` - which bloc chart `--with-pie-charts` draws: `arc` (the default, `women_by_bloc_*.jpg`), `bars` (`women_by_bloc_bars_*.jpg`) or `both`
+- `--bloc-chart-style` - which bloc chart `--with-pie-charts` draws: `arc` (the default, `women_by_bloc`), `bars` (`women_by_bloc_bars`) or `both`
 - `--mapping-csv` - path to the party -> bloc mapping CSV (defaults to `mapping.csv` inside `--input-dir`)
 - `--create-email-drafts` - also create a Gmail draft (never sent) per outlet, summarizing that poll and attaching its charts (every bloc chart that was drawn), built from `templates/assets/text_for_email.txt`. Needs `mapping.csv` (loaded automatically even without `--with-pie-charts`) and a Gmail App Password (`--gmail-app-password`, or the `GMAIL_APP_PASSWORD` environment variable - safer than passing it on the command line)
 
-Output files:
-- `women_seats_<outlet>_<date>.jpg` - per-party bar chart, one per poll
-- `women_by_bloc_<outlet>_<date>.jpg` / `women_by_bloc_bars_<outlet>_<date>.jpg` - bloc charts, one per poll
-- `..._ממוצע_סקרים.jpg` - the same charts for the polling average
+Output files are named `<YYYYMMDD>_<chart type>_<outlet or ממוצע_סקרים>.jpg` - the date first so they sort by date, the Hebrew part last. Chart types:
+- `women_seats` - per-party bar chart
+- `women_by_bloc` - bloc arc chart
+- `women_by_bloc_bars` - bloc bar chart
 
-A poll's charts are skipped if their file already exists (a past poll's numbers don't change), so delete them to redraw after a design change. The polling-average charts are always redrawn.
+For example `20261005_women_seats_חדשות_12.jpg`. A poll's charts use the poll's date; the polling-average charts (`..._ממוצע_סקרים.jpg`) use the date of the run, the same date shown in their subtitle.
+
+A poll's charts are skipped if their file already exists (a past poll's numbers don't change), so delete them to redraw after a design change. The polling-average charts are always redrawn (a new file on each day you run it).
 
 The email's "חלוקה לפי גושים" section lists women in the same groups as the bloc bar chart - `שינוי`, `ימין־חרדים`, `המילואימניקים`, `הרשימה המשותפת` - and drops any group with no women in that poll. Each line in `text_for_email.txt` has a `[מספר]` placeholder, filled in order; keep the placeholders when editing the wording. The file can be saved from Windows Notepad (UTF-16) or as UTF-8.
 
