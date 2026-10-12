@@ -39,7 +39,10 @@ Edit these directly to change fonts, colors, spacing, or layout - `plot_women_by
 `Heebo-Regular.ttf` / `Heebo-Bold.ttf`, embedded into the rendered charts so they don't depend on the network at render time.
 
 ### graphs/
-Suggested output folder for the generated chart JPGs (pass `--output-dir graphs/` to `plot_women_by_outlet.py`). Also holds the latest polling-average charts (`women_seats_avg.jpg`, `women_by_bloc_avg.jpg`, `women_by_bloc_bars_avg.jpg`).
+The latest chart for each outlet and for the polling average, under fixed English names: `<chart type>_<outlet>.jpg` (e.g. `women_seats_channel_13.jpg`) and `<chart type>_avg.jpg`. `plot_women_by_outlet.py` copies every chart here and overwrites the previous one on each run.
+
+### graphs_date/
+Default folder for the dated chart files from `plot_women_by_outlet.py` (see below).
 
 ## Scripts
 
@@ -50,7 +53,7 @@ Generates the "how many women are expected in the next Knesset" social graphics 
 python plot_women_by_outlet.py [--input-dir DIR] [--output-dir DIR] [--with-pie-charts] [--bloc-chart-style {arc,bars,both}] [--mapping-csv PATH] [--create-email-drafts] [--gmail-app-password APP_PASSWORD]
 ```
 - `--input-dir` - folder containing `party-comparison-updated-vNN.xlsx` (defaults to the current folder; auto-picks the highest version number found there)
-- `--output-dir` - folder to write the `.jpg` files to (defaults to `--input-dir`; try `graphs/`)
+- `--output-dir` - folder for the dated `.jpg` files (defaults to `graphs_date` inside `--input-dir`)
 - `--with-pie-charts` - also generate a bloc chart for each poll (needs `mapping.csv`)
 - `--bloc-chart-style` - which bloc chart `--with-pie-charts` draws: `arc` (the default, `women_by_bloc`), `bars` (`women_by_bloc_bars`) or `both`
 - `--mapping-csv` - path to the party -> bloc mapping CSV (defaults to `mapping.csv` inside `--input-dir`)
@@ -63,7 +66,9 @@ Output files are named `<YYYYMMDD>_<chart type>_<outlet or ממוצע_סקרים
 
 For example `20261005_women_seats_חדשות_12.jpg`. A poll's charts use the poll's date; the polling-average charts (`..._ממוצע_סקרים.jpg`) use the date of the run, the same date shown in their subtitle.
 
-A poll's charts are skipped if their file already exists (a past poll's numbers don't change), so delete them to redraw after a design change. The polling-average charts are always redrawn (a new file on each day you run it).
+Every chart is also copied to `graphs/` (inside `--input-dir`) as `<chart type>_<outlet in English>.jpg`, or `<chart type>_avg.jpg` for the polling average, replacing the previous copy. The English outlet names are set in `OUTLET_ENGLISH_NAMES` in the script (`channel_12`, `channel_13`, `channel_14`, `channel_16`, `kan_11`, `i24_news`, `maariv`, `israel_hayom`, `zman_israel`, `walla`); an outlet missing there gets a warning and keeps its Hebrew name in `graphs/` until it's added.
+
+A poll's charts are skipped if their dated file already exists in the output folder (a past poll's numbers don't change), so delete them to redraw after a design change; skipped charts are still copied to `graphs/`. The polling-average charts are always redrawn (a new file on each day you run it).
 
 The email's "חלוקה לפי גושים" section lists women in the same groups as the bloc bar chart - `שינוי`, `ימין־חרדים`, `המילואימניקים`, `הרשימה המשותפת` - and drops any group with no women in that poll. Each line in `text_for_email.txt` has a `[מספר]` placeholder, filled in order; keep the placeholders when editing the wording. The file can be saved from Windows Notepad (UTF-16) or as UTF-8.
 

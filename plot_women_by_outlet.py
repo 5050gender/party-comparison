@@ -40,8 +40,13 @@ Usage:
                             party-comparison-updated-vXX.xlsx files (defaults
                             to the current directory). The file with the
                             highest vXX number is used.
-    --output-dir            Folder to write the .jpg files to (defaults to
-                            the input directory).
+    --output-dir            Folder for the dated chart files (defaults to
+                            "graphs_date" inside the input directory).
+                            Every chart is also copied to "graphs" inside
+                            the input directory under a fixed English name
+                            (<chart type>_<outlet>.jpg, or
+                            <chart type>_avg.jpg for the polling average),
+                            overwritten on each run.
     --with-pie-charts       Also generate a per-poll pie chart of expected
                             women by bloc (optional; off by default).
     --bloc-chart-style      Which bloc chart --with-pie-charts draws: "arc"
@@ -72,6 +77,7 @@ import io
 import math
 import os
 import re
+import shutil
 import sys
 import time
 from datetime import datetime
@@ -935,6 +941,56 @@ def chart_filename(date_raw, chart_type: str, label: str) -> str:
     return f"{date_part}_{chart_type}_{sanitize_filename(label)}.jpg"
 
 
+# Second copy of every chart, under fixed English names that are simply
+# overwritten on each run, so this folder always holds the latest chart per
+# outlet: <chart type>_<outlet in English>.jpg, and <chart type>_avg.jpg for
+# the polling average.
+LATEST_GRAPHS_DIR_NAME = "graphs"
+DEFAULT_DATED_DIR_NAME = "graphs_date"
+LATEST_AVG_LABEL = "avg"
+OUTLET_ENGLISH_NAMES = {
+    "חדשות 12": "channel_12",
+    "חדשות 13": "channel_13",
+    "ערוץ 14": "channel_14",
+    "ערוץ 16": "channel_16",
+    "כאן חדשות": "kan_11",
+    "i24 news": "i24_news",
+    "מעריב": "maariv",
+    "ישראל היום": "israel_hayom",
+    "זמן ישראל": "zman_israel",
+    "וואלה": "walla",
+}
+
+
+def latest_chart_filename(chart_type: str, english_label: str) -> str:
+    return f"{chart_type}_{english_label}.jpg"
+
+
+def outlet_english_label(outlet: str) -> str:
+    """The outlet's English name for the latest-graphs copy; an outlet not in
+    OUTLET_ENGLISH_NAMES falls back to its (sanitized) Hebrew name, with a
+    warning so it can be added."""
+    label = OUTLET_ENGLISH_NAMES.get(outlet)
+    if label is None:
+        label = sanitize_filename(outlet)
+        print(f'  warning: no English name for outlet "{outlet}" in '
+              f'OUTLET_ENGLISH_NAMES; using "{label}" in {LATEST_GRAPHS_DIR_NAME}/')
+    return label
+
+
+def copy_to_latest(src: Path, latest_dir: Path, chart_type: str,
+                   english_label: str) -> None:
+    """Copy an already-written chart into the latest-graphs folder under its
+    fixed English name (no-op if the chart wasn't written, e.g. a 0-women
+    bloc chart)."""
+    if not src.exists():
+        return
+    dst = latest_dir / latest_chart_filename(chart_type, english_label)
+    if src.resolve() != dst.resolve():
+        shutil.copy2(src, dst)
+        print(f"    copied to {latest_dir.name}/{dst.name}")
+
+
 # NOTE: unlike the old matplotlib charts, none of this text is pre-reordered
 # with a bidi helper -- the HTML templates set dir="rtl"/direction:rtl and
 # the browser applies the Unicode bidi algorithm itself. Pre-reordering here
@@ -1351,8 +1407,10 @@ def main():
     parser.add_argument("--input-dir", default=".",
                          help="Folder containing party-comparison-updated-vXX.xlsx")
     parser.add_argument("--output-dir", default=None,
-                         help="Folder to write the .jpg files to "
-                              "(defaults to --input-dir)")
+                         help="Folder for the dated chart files (defaults "
+                              "to graphs_date inside --input-dir). Every chart "
+                              "is also copied to graphs/ inside --input-dir "
+                              "under a fixed English name.")
     parser.add_argument("--with-pie-charts", action="store_true",
                          help="Also generate a per-poll pie chart of expected "
                               "women by bloc (needs mapping.csv)")
@@ -1382,8 +1440,11 @@ def main():
     args = parser.parse_args()
 
     input_dir = Path(args.input_dir)
-    output_dir = Path(args.output_dir) if args.output_dir else input_dir
+    output_dir = (Path(args.output_dir) if args.output_dir
+                  else input_dir / DEFAULT_DATED_DIR_NAME)
     output_dir.mkdir(parents=True, exist_ok=True)
+    latest_dir = input_dir / LATEST_GRAPHS_DIR_NAME
+    latest_dir.mkdir(parents=True, exist_ok=True)
 
     workbook_path = find_latest_workbook(input_dir)
     print(f"Using workbook: {workbook_path.name}")
@@ -1477,6 +1538,8 @@ def main():
         else:
             plot_poll(df_poll, outlet, date_raw, out_path)
             print(f"  wrote {out_path.name}")
+        outlet_en = outlet_english_label(outlet)
+        copy_to_latest(out_path, latest_dir, "women_seats", outlet_en)
 
         bloc_out_paths = []
         if mapping is not None:
@@ -1491,6 +1554,7 @@ def main():
                 # 0-women poll: plot_pie_poll always skips these
                 if pie_out_path.exists():
                     bloc_out_paths.append(pie_out_path)
+                copy_to_latest(pie_out_path, latest_dir, chart_type, outlet_en)
 
         if args.create_email_drafts:
             if df_poll.empty or df_poll[COL_WOMEN].sum() == 0:
@@ -1515,12 +1579,14 @@ def main():
     mean_out_path = output_dir / chart_filename(run_date, "women_seats", MEAN_POLL_FILE_LABEL)
     plot_mean_poll(df_mean, mean_out_path)
     print(f"  wrote {mean_out_path.name}")
+    copy_to_latest(mean_out_path, latest_dir, "women_seats", LATEST_AVG_LABEL)
 
     if mapping is not None:
         for chart_type, style in bloc_styles:
             mean_pie_out_path = output_dir / chart_filename(run_date, chart_type, MEAN_POLL_FILE_LABEL)
             if plot_mean_pie_poll(df_mean, mapping, mean_pie_out_path, style=style):
                 print(f"  wrote {mean_pie_out_path.name}")
+                copy_to_latest(mean_pie_out_path, latest_dir, chart_type, LATEST_AVG_LABEL)
 
     print("Done.")
 
