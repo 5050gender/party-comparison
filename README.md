@@ -59,6 +59,8 @@ python plot_women_by_outlet.py [--input-dir DIR] [--output-dir DIR] [--with-pie-
 - `--mapping-csv` - path to the party -> bloc mapping CSV (defaults to `mapping.csv` inside `--input-dir`)
 - `--create-email-drafts` - also create a Gmail draft (never sent) per outlet, summarizing that poll and attaching its charts (every bloc chart that was drawn), built from `templates/assets/text_for_email.txt`. Needs `mapping.csv` (loaded automatically even without `--with-pie-charts`) and a Gmail App Password (`--gmail-app-password`, or the `GMAIL_APP_PASSWORD` environment variable - safer than passing it on the command line)
 
+  If Gmail rejects a draft (it sometimes answers with a temporary "System Error"), the script retries it up to three times on a fresh connection. A draft that still fails is skipped with a warning, the rest of the run (other drafts, the polling-average charts) carries on, and the failed drafts are listed at the end.
+
 Output files are named `<YYYYMMDD>_<chart type>_<outlet or ממוצע_סקרים>.jpg` - the date first so they sort by date, the Hebrew part last. Chart types:
 - `women_seats` - per-party bar chart
 - `women_by_bloc` - bloc arc chart
