@@ -1388,6 +1388,32 @@ def build_email_message(subject: str, body: str, attachments: list) -> EmailMess
     return msg
 
 
+# Gmail sometimes rejects an IMAP APPEND with a transient "System Error"
+# (more likely after several logins in a row), so each draft is retried on
+# a fresh connection, waiting this many seconds before each retry.
+DRAFT_RETRY_DELAYS = (3, 10, 30)
+
+
+def save_gmail_draft_with_retries(msg: EmailMessage, app_password: str) -> bool:
+    """save_gmail_draft, retried on a fresh connection after a failure.
+    Returns False (after printing why) if every attempt failed, so the
+    caller can carry on with the rest of the run."""
+    attempts = len(DRAFT_RETRY_DELAYS) + 1
+    for attempt in range(1, attempts + 1):
+        try:
+            save_gmail_draft(msg, app_password)
+            return True
+        except (imaplib.IMAP4.error, OSError, RuntimeError) as exc:
+            if attempt == attempts:
+                print(f"  warning: could not save email draft after "
+                      f"{attempts} attempts ({exc})")
+                return False
+            delay = DRAFT_RETRY_DELAYS[attempt - 1]
+            print(f"  email draft failed ({exc}); retrying in {delay}s "
+                  f"(attempt {attempt + 1} of {attempts})")
+            time.sleep(delay)
+
+
 def save_gmail_draft(msg: EmailMessage, app_password: str) -> None:
     """Append `msg` to the Gmail Drafts folder via IMAP (never sends it)."""
     with imaplib.IMAP4_SSL(IMAP_HOST) as imap:
@@ -1528,6 +1554,7 @@ def main():
     # that are actually new (plus the mean/aggregate poll below, which is
     # NOT skipped -- it changes every time any poll is added, so it's always
     # regenerated).
+    failed_drafts = []  # subjects of drafts Gmail kept rejecting
     for outlet, date_raw in polls:
         df_poll = df[(df[COL_OUTLET] == outlet) & (df[COL_DATE] == date_raw)]
         date_str = format_poll_date(date_raw)
@@ -1565,8 +1592,10 @@ def main():
             body = build_email_body(outlet, date_str, stats)
             attachments = [out_path] + bloc_out_paths
             msg = build_email_message(subject, body, attachments)
-            save_gmail_draft(msg, app_password)
-            print(f"  created email draft: {subject}")
+            if save_gmail_draft_with_retries(msg, app_password):
+                print(f"  created email draft: {subject}")
+            else:
+                failed_drafts.append(subject)
 
     # Also plot the aggregate "mean poll" (average-of-polls) estimate --
     # always regenerated (never skipped even if the file already exists),
@@ -1588,6 +1617,12 @@ def main():
                 print(f"  wrote {mean_pie_out_path.name}")
                 copy_to_latest(mean_pie_out_path, latest_dir, chart_type, LATEST_AVG_LABEL)
 
+    if failed_drafts:
+        print(f"Done, but {len(failed_drafts)} email draft(s) could not be "
+              f"saved (the charts above were all written):")
+        for subject in failed_drafts:
+            print(f"  - {subject}")
+        sys.exit(1)
     print("Done.")
 
 
