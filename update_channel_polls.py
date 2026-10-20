@@ -129,7 +129,6 @@ FIELD_TO_PARTY = [
     ('likud', 'הליכוד'),
     ('utj', 'יהדות התורה'),
     ('shas', 'ש"ס'),
-    ('bw', 'כחול לבן'),
     (('hadashTal', 'ballad', 'unifiedArabList'), 'הרשימה המשותפת'),  # חד"ש-תע"ל + בל"ד merged &
                                              # renamed to "הרשימה המשותפת", 2026-08. themadad.com's
                                              # per-channel poll records used 'hadashTal'(+'ballad')
@@ -174,7 +173,6 @@ AVERAGE_LABEL_TO_PARTY = [
                                      # below are stale leftovers, see IGNORED_AVERAGE_LABELS.
     ('רע"מ', 'רע"מ'),
     ('הציונות הדתית / זהות', 'הציונות הדתית'),  # site relabeled from plain 'הציונות הדתית', ~2026-09-24
-    ('כחול לבן', 'כחול לבן'),
     ('רשימה ערבית מאוחדת', 'רשימה ערבית מאוחדת'),
     ('עמך ישראל', 'עמך ישראל'),  # site relabeled from the leader's name 'עופר וינטר', ~2026-09-24
     ('המילואימניקים / זליכה', 'המילואימניקים-הכלכלית'),  # site relabeled from
@@ -202,6 +200,8 @@ AVERAGE_LABEL_TO_PARTY = [
 # - 'מפלגה בראשות גלעד ארדן ויולי אדלשטיין': this project stopped tracking
 #   the Erdan-Edelstein party ("האחדות"), 2026-09-24 - it was never actually
 #   added to the workbook/HTML, so there's no party for this label to map to.
+# - 'כחול לבן': dropped out of the election (2026-10), so this project no
+#   longer tracks it; ignored in case themadad.com still lists it.
 IGNORED_AVERAGE_LABELS = {
     'יש עתיד',
     'חדש תע"ל',
@@ -211,6 +211,7 @@ IGNORED_AVERAGE_LABELS = {
     'עופר וינטר',
     'המפלגה של הנדל וזליכה',
     'מפלגה בראשות גלעד ארדן ויולי אדלשטיין',
+    'כחול לבן',
 }
 
 SHEET_NAME = 'סקרים לפי ערוץ'
