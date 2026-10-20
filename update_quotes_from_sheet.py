@@ -76,7 +76,6 @@ GVIZ_URL = (
 SHEET_NAME_TO_ID = {
     'עוצמה יהודית': 'bengvir',
     'ישר': 'eisenkot',
-    'כחול לבן': 'gantz',
     'ש"ס': 'deri',
     'ביחד': 'bennett',
     'חד"ש תע"ל': 'odeh',
