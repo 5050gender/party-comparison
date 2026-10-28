@@ -1014,7 +1014,7 @@ def build_bar_subheadline_mean() -> str:
     mean-poll (average-of-polls) chart -- there's no single poll date to
     show (it aggregates every outlet's latest poll), so this uses today's
     date instead, i.e. when this snapshot was generated."""
-    return f"לפי ממוצע הסקרים | תאריך: {format_date_short(datetime.now())}"
+    return f"לפי ממוצע המדגמים | תאריך: {format_date_short(datetime.now())}"
 
 
 def load_mapping(mapping_csv: Path) -> dict:
@@ -1215,7 +1215,7 @@ def plot_mean_pie_poll(df_mean: pd.DataFrame, mapping: dict, out_path: Path,
     title_line1 = build_bar_headline()
     title_line2 = build_bar_subheadline_mean()
     return render_bloc_chart(df, mapping, title_line1, title_line2, out_path,
-                              skip_label="ממוצע הסקרים", style=style)
+                              skip_label="ממוצע המדגמים", style=style)
 
 
 def compute_poll_email_stats(df_poll: pd.DataFrame, mapping: dict) -> dict:
