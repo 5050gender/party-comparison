@@ -959,6 +959,7 @@ OUTLET_ENGLISH_NAMES = {
     "ישראל היום": "israel_hayom",
     "זמן ישראל": "zman_israel",
     "וואלה": "walla",
+    "ממוצע 5 מדגמים": "avg_5_exit_polls",
 }
 
 

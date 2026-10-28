@@ -68,7 +68,7 @@ Output files are named `<YYYYMMDD>_<chart type>_<outlet or ממוצע_סקרים
 
 For example `20261005_women_seats_חדשות_12.jpg`. A poll's charts use the poll's date; the polling-average charts (`..._ממוצע_סקרים.jpg`) use the date of the run, the same date shown in their subtitle.
 
-Every chart is also copied to `graphs/` (inside `--input-dir`) as `<chart type>_<outlet in English>.jpg`, or `<chart type>_avg.jpg` for the polling average, replacing the previous copy. The English outlet names are set in `OUTLET_ENGLISH_NAMES` in the script (`channel_12`, `channel_13`, `channel_14`, `channel_16`, `kan_11`, `i24_news`, `maariv`, `israel_hayom`, `zman_israel`, `walla`); an outlet missing there gets a warning and keeps its Hebrew name in `graphs/` until it's added.
+Every chart is also copied to `graphs/` (inside `--input-dir`) as `<chart type>_<outlet in English>.jpg`, or `<chart type>_avg.jpg` for the polling average, replacing the previous copy. The English outlet names are set in `OUTLET_ENGLISH_NAMES` in the script (`channel_12`, `channel_13`, `channel_14`, `channel_16`, `kan_11`, `i24_news`, `maariv`, `israel_hayom`, `zman_israel`, `walla`, and `avg_5_exit_polls` for the `ממוצע 5 מדגמים` row); an outlet missing there gets a warning and keeps its Hebrew name in `graphs/` until it's added.
 
 A poll's charts are skipped if their dated file already exists in the output folder (a past poll's numbers don't change), so delete them to redraw after a design change; skipped charts are still copied to `graphs/`. The polling-average charts are always redrawn (a new file on each day you run it).
 
