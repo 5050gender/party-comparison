@@ -556,6 +556,7 @@ def build_arc_chart_data(opp_women: int, opp_men: int, coal_women: int,
         "title_line1": title_line1,
         "title_line2": title_line2,
         "outlet_name": outlet_name,
+        "outlet_source": outlet_subtitle_source(outlet_name) if outlet_name else None,
         "poll_date_str": poll_date_str,
         "outlet_logo_data_uri": _outlet_logo_data_uri(outlet_name) if outlet_name else None,
         "outlet_logo_width": ARC_OUTLET_LOGO_WIDTH,
@@ -669,6 +670,7 @@ def build_bloc_bar_chart_data(opp_women: int, opp_men: int, coal_women: int,
         "title_line1": title_line1,
         "title_line2": title_line2,
         "outlet_name": outlet_name,
+        "outlet_source": outlet_subtitle_source(outlet_name) if outlet_name else None,
         "poll_date_str": poll_date_str,
         "outlet_logo_data_uri": _outlet_logo_data_uri(outlet_name) if outlet_name else None,
         "outlet_logo_width": BLOC_BAR_OUTLET_LOGO_WIDTH,
@@ -851,6 +853,7 @@ def render_bar_chart_html(title_line1: str, title_line2: str, rows: list,
         name_col_width=BAR_NAME_COL_WIDTH,
         bar_col_width=BAR_AREA_COL_WIDTH,
         outlet_name=outlet_name,
+        outlet_source=outlet_subtitle_source(outlet_name) if outlet_name else None,
         poll_date_str=poll_date_str,
         outlet_logo_data_uri=_outlet_logo_data_uri(outlet_name) if outlet_name else None,
         outlet_logo_size=BAR_OUTLET_LOGO_SIZE,
@@ -959,6 +962,7 @@ OUTLET_ENGLISH_NAMES = {
     "ישראל היום": "israel_hayom",
     "זמן ישראל": "zman_israel",
     "וואלה": "walla",
+    "ממוצע 5 מדגמים": "avg_5_exit_polls",
 }
 
 
@@ -1002,10 +1006,23 @@ def build_bar_headline() -> str:
     return "כמה נשים תהיינה בכנסת הבאה?"
 
 
+# An outlet row that isn't a single poll (e.g. an average of several) reads
+# oddly as "לפי סקר <name>", so its subtitle names the source as given here
+# instead. Every other outlet keeps "סקר <outlet>".
+OUTLET_SUBTITLE_SOURCES = {
+    "ממוצע 5 מדגמים": "ממוצע 5 המדגמים",
+}
+
+
+def outlet_subtitle_source(outlet: str) -> str:
+    """What follows "לפי" in an outlet chart's subtitle."""
+    return OUTLET_SUBTITLE_SOURCES.get(outlet, f"סקר {outlet}")
+
+
 def build_bar_subheadline(outlet: str, date_raw) -> str:
     """Second (smaller) line of the bar chart's title block, naming the
     poll it's based on and the poll's own date."""
-    return f"לפי סקר {outlet} | תאריך: {format_date_short(date_raw)}"
+    return f"לפי {outlet_subtitle_source(outlet)} | תאריך: {format_date_short(date_raw)}"
 
 
 def build_bar_subheadline_mean() -> str:
@@ -1013,7 +1030,7 @@ def build_bar_subheadline_mean() -> str:
     mean-poll (average-of-polls) chart -- there's no single poll date to
     show (it aggregates every outlet's latest poll), so this uses today's
     date instead, i.e. when this snapshot was generated."""
-    return f"לפי ממוצע הסקרים | תאריך: {format_date_short(datetime.now())}"
+    return f"לפי ממוצע המדגמים | תאריך: {format_date_short(datetime.now())}"
 
 
 def load_mapping(mapping_csv: Path) -> dict:
@@ -1214,7 +1231,7 @@ def plot_mean_pie_poll(df_mean: pd.DataFrame, mapping: dict, out_path: Path,
     title_line1 = build_bar_headline()
     title_line2 = build_bar_subheadline_mean()
     return render_bloc_chart(df, mapping, title_line1, title_line2, out_path,
-                              skip_label="ממוצע הסקרים", style=style)
+                              skip_label="ממוצע המדגמים", style=style)
 
 
 def compute_poll_email_stats(df_poll: pd.DataFrame, mapping: dict) -> dict:

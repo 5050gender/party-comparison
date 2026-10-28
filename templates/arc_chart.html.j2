@@ -89,7 +89,7 @@
             <div class="header-text-col">
                 {% if title_line1 %}<h1 class="header-title">{{ title_line1 }}</h1>{% endif %}
                 {% if outlet_name %}
-                <p class="header-subtitle">לפי סקר {{ outlet_name }} | תאריך: {{ poll_date_str }}</p>
+                <p class="header-subtitle">לפי {{ outlet_source }} | תאריך: {{ poll_date_str }}</p>
                 {% elif title_line2 %}
                 <p class="header-subtitle">{{ title_line2 }}</p>
                 {% endif %}
