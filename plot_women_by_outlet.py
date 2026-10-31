@@ -963,6 +963,7 @@ OUTLET_ENGLISH_NAMES = {
     "זמן ישראל": "zman_israel",
     "וואלה": "walla",
     "ממוצע 5 מדגמים": "avg_5_exit_polls",
+    "תוצאות סופיות": "final_results",
 }
 
 
@@ -1011,6 +1012,7 @@ def build_bar_headline() -> str:
 # instead. Every other outlet keeps "מדגם <outlet>".
 OUTLET_SUBTITLE_SOURCES = {
     "ממוצע 5 מדגמים": "ממוצע 5 המדגמים",
+    "תוצאות סופיות": "התוצאות הסופיות",
 }
 
 
