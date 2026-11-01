@@ -838,7 +838,7 @@ def render_bar_chart_html(title_line1: str, title_line2: str, rows: list,
     layout exactly (see templates/bar_chart.html.j2's header comment).
 
     outlet_name/poll_date_str (per-outlet charts only -- the mean-poll chart
-    passes neither) let the template rebuild the "לפי סקר X | תאריך: Y"
+    passes neither) let the template rebuild the "לפי מדגם X | תאריך: Y"
     subtitle itself instead of taking title_line2 as opaque text, so it can
     drop the outlet's logo (see OUTLET_LOGO_FILES) inline right next to the
     outlet's name when one is on file; with no entry the subtitle renders
@@ -963,6 +963,7 @@ OUTLET_ENGLISH_NAMES = {
     "זמן ישראל": "zman_israel",
     "וואלה": "walla",
     "ממוצע 5 מדגמים": "avg_5_exit_polls",
+    "תוצאות סופיות": "final_results",
 }
 
 
@@ -1007,16 +1008,17 @@ def build_bar_headline() -> str:
 
 
 # An outlet row that isn't a single poll (e.g. an average of several) reads
-# oddly as "לפי סקר <name>", so its subtitle names the source as given here
-# instead. Every other outlet keeps "סקר <outlet>".
+# oddly as "לפי מדגם <name>", so its subtitle names the source as given here
+# instead. Every other outlet keeps "מדגם <outlet>".
 OUTLET_SUBTITLE_SOURCES = {
     "ממוצע 5 מדגמים": "ממוצע 5 המדגמים",
+    "תוצאות סופיות": "התוצאות הסופיות",
 }
 
 
 def outlet_subtitle_source(outlet: str) -> str:
     """What follows "לפי" in an outlet chart's subtitle."""
-    return OUTLET_SUBTITLE_SOURCES.get(outlet, f"סקר {outlet}")
+    return OUTLET_SUBTITLE_SOURCES.get(outlet, f"מדגם {outlet}")
 
 
 def build_bar_subheadline(outlet: str, date_raw) -> str:

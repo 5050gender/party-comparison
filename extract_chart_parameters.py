@@ -168,7 +168,7 @@ ROWS = [
     # ---------- plot_women_by_outlet.py -- fixed chart text ----------
     (PY, "build_bar_headline()", "headline text", "כמה נשים תהיינה בכנסת הבאה?",
      "Same on every bar chart and arc chart"),
-    (PY, "build_bar_subheadline(outlet, date)", "subtitle template", "לפי {source} | תאריך: {DD.MM.YY} (source: סקר {outlet}, or OUTLET_SUBTITLE_SOURCES)",
+    (PY, "build_bar_subheadline(outlet, date)", "subtitle template", "לפי {source} | תאריך: {DD.MM.YY} (source: מדגם {outlet}, or OUTLET_SUBTITLE_SOURCES)",
      "Per-outlet poll charts -- mixes fixed text with live expressions, edit by hand"),
     (PY, "build_bar_subheadline_mean()", "subtitle template (mean poll)", "לפי ממוצע המדגמים | תאריך: {DD.MM.YY}",
      "Mean-poll chart; date is today's date -- mixes fixed text with a live expression, edit by hand"),
